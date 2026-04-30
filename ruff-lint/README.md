@@ -7,7 +7,7 @@ rules.
 ## Usage
 
 ```console
-$ sbx run claude --kit "git+https://github.com/dvdksn/kits-cookbook.git#dir=ruff-lint" ~/my-project
+$ sbx run claude --kit "git+https://github.com/alakae/sbx-kits.git#dir=ruff-lint" ~/my-project
 ```
 
 The built-in `claude`, `codex`, and `gemini` agent templates already include
@@ -24,5 +24,5 @@ Edit `files/workspace/ruff.toml` before loading the kit to change the shared
 rules. To preview the spec:
 
 ```console
-$ sbx kit inspect "git+https://github.com/dvdksn/kits-cookbook.git#dir=ruff-lint"
+$ sbx kit inspect "git+https://github.com/alakae/sbx-kits.git#dir=ruff-lint"
 ```

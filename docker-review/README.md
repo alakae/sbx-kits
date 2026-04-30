@@ -9,7 +9,7 @@ security, reproducibility).
 ## Usage
 
 ```console
-$ sbx run claude --kit "git+https://github.com/dvdksn/kits-cookbook.git#dir=docker-review" ~/my-project
+$ sbx run claude --kit "git+https://github.com/alakae/sbx-kits.git#dir=docker-review" ~/my-project
 ```
 
 Inside the sandbox, invoke the skill directly:

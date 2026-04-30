@@ -10,7 +10,7 @@ Addresses the community ask in
 ## Usage
 
 ```console
-$ sbx run claude-safe --kit "git+https://github.com/dvdksn/kits-cookbook.git#dir=claude-safe" ~/my-project
+$ sbx run claude-safe --kit "git+https://github.com/alakae/sbx-kits.git#dir=claude-safe" ~/my-project
 ```
 
 The agent name passed to `sbx run` (`claude-safe`) matches the `name:` field
