@@ -1,0 +1,5 @@
+schemaVersion: "1"
+kind: mixin
+name: base-skills
+displayName: Base Skills
+description: My base Claude Code skills used across many different repos

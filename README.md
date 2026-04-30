@@ -9,8 +9,8 @@ for [Docker Sandboxes (`sbx`)](https://docs.docker.com/ai/sandboxes/).
 
 | Kit | Kind | What it does |
 | --- | ---- | ------------ |
+| [`base-skills`](./base-skills) | mixin | My base Claude Code skills used across many different repos |
 | [`ruff-lint`](./ruff-lint) | mixin | Installs Ruff and drops a shared `ruff.toml` into the workspace |
-| [`docker-review`](./docker-review) | mixin | Ships a Claude Code skill that reviews Dockerfiles |
 | [`claude-safe`](./claude-safe) | agent | Fork of the built-in `claude` agent that runs without `--dangerously-skip-permissions` |
 
 ## Loading a kit
@@ -35,7 +35,7 @@ Stack several kits on the same sandbox by repeating `--kit`:
 ```console
 $ sbx run claude \
     --kit "git+https://github.com/alakae/sbx-kits.git#dir=ruff-lint" \
-    --kit "git+https://github.com/alakae/sbx-kits.git#dir=docker-review" \
+    --kit "git+https://github.com/alakae/sbx-kits.git#dir=base-skills" \
     ~/my-project
 ```
 
