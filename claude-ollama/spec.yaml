@@ -1,0 +1,39 @@
+schemaVersion: "1"
+kind: agent
+name: claude-ollama
+displayName: Claude Code (Ollama)
+description: Claude Code wired to Ollama Anthropic-compatible API, with configurable model.
+
+agent:
+  image: "docker/sandbox-templates:claude-code-docker"
+  aiFilename: CLAUDE.md
+  persistence: persistent
+  entrypoint:
+    run: [/home/agent/.local/bin/claude-ollama]
+
+environment:
+  variables:
+    CLAUDE_OLLAMA_MODEL: "gemma4:e4b-it-q4_K_M"
+
+network:
+  allowedDomains:
+    - "localhost:11434"
+
+commands:
+  initFiles:
+    - path: /home/agent/.local/bin/claude-ollama
+      mode: "0755"
+      content: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        export ANTHROPIC_AUTH_TOKEN="ollama"
+        export ANTHROPIC_API_KEY=""
+        export ANTHROPIC_BASE_URL="http://host.docker.internal:11434"
+
+        export ANTHROPIC_DEFAULT_OPUS_MODEL="$CLAUDE_OLLAMA_MODEL"
+        export ANTHROPIC_DEFAULT_SONNET_MODEL="$CLAUDE_OLLAMA_MODEL"
+        export ANTHROPIC_DEFAULT_HAIKU_MODEL="$CLAUDE_OLLAMA_MODEL"
+        export CLAUDE_CODE_SUBAGENT_MODEL="$CLAUDE_OLLAMA_MODEL"
+
+        exec claude "$@"
