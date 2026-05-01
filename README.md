@@ -9,6 +9,7 @@ for [Docker Sandboxes (`sbx`)](https://docs.docker.com/ai/sandboxes/).
 
 | Kit | Kind | What it does |
 | --- | ---- | ------------ |
+| [`base-rules`](./base-rules) | mixin | My base Claude Code behavioral rules used across many different repos |
 | [`base-skills`](./base-skills) | mixin | My base Claude Code skills used across many different repos |
 | [`ruff-lint`](./ruff-lint) | mixin | Installs Ruff and drops a shared `ruff.toml` into the workspace |
 | [`claude-safe`](./claude-safe) | agent | Fork of the built-in `claude` agent that runs without `--dangerously-skip-permissions` |
