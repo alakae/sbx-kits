@@ -5,6 +5,18 @@ for [Docker Sandboxes (`sbx`)](https://docs.docker.com/ai/sandboxes/).
 
 > Based on [dvdksn/kits-cookbook](https://github.com/dvdksn/kits-cookbook) — thanks [@dvdksn](https://github.com/dvdksn)!
 
+## My base Claude
+
+My default starting point — permission-prompting agent with base rules and skills:
+
+```console
+$ sbx run claude-safe \
+    --kit "git+https://github.com/alakae/sbx-kits.git#dir=claude-safe" \
+    --kit "git+https://github.com/alakae/sbx-kits.git#dir=base-rules" \
+    --kit "git+https://github.com/alakae/sbx-kits.git#dir=base-skills" \
+    .
+```
+
 ## Kits
 
 | Kit | Kind | What it does |
