@@ -26,6 +26,7 @@ $ sbx run claude-safe \
 | [`ruff-lint`](./ruff-lint) | mixin | Installs Ruff and drops a shared `ruff.toml` into the workspace |
 | [`claude-ollama`](./claude-ollama) | agent | Fork of the built-in `claude` agent wired to a local Ollama instance instead of the Anthropic API |
 | [`claude-safe`](./claude-safe) | agent | Fork of the built-in `claude` agent that runs without `--dangerously-skip-permissions` |
+| [`cloudscale-api`](./cloudscale-api) | mixin | Grants access to `api.cloudscale.ch` with automatic Bearer token injection |
 
 ## Loading a kit
 

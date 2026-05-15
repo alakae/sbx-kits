@@ -1,0 +1,25 @@
+schemaVersion: "1"
+kind: mixin
+name: cloudscale-api
+displayName: Cloudscale API
+description: Grants sandbox access to api.cloudscale.ch with credential injection
+
+network:
+  allowedDomains:
+    - "api.cloudscale.ch:443"
+  serviceDomains:
+    api.cloudscale.ch: cloudscale
+  serviceAuth:
+    cloudscale:
+      headerName: Authorization
+      valueFormat: "Bearer %s"
+
+credentials:
+  sources:
+    cloudscale:
+      env:
+        - CLOUDSCALE_API_TOKEN
+
+environment:
+  proxyManaged:
+    - CLOUDSCALE_API_TOKEN
