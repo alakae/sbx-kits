@@ -6,6 +6,16 @@ real token.
 
 ## Usage
 
+Export your cloudscale API token in your shell before running the sandbox:
+
+```console
+$  export CLOUDSCALE_API_TOKEN=your-token-here
+```
+
+The mixin reads `CLOUDSCALE_API_TOKEN` from your host environment at sandbox
+creation time and injects it automatically into requests to `api.cloudscale.ch`.
+The token is never exposed inside the sandbox.
+
 ```console
 $ sbx run shell \
     --kit "git+https://github.com/alakae/sbx-kits.git#dir=cloudscale-api" \
@@ -18,13 +28,6 @@ $ sbx run shell \
 - `Authorization: Bearer <token>` header injected on every request to `api.cloudscale.ch`
 - `CLOUDSCALE_API_TOKEN` set to `proxy-managed` inside the sandbox (the real value never leaves the host)
 
-## Token setup
-
-Store the token as a sandbox secret on your host (one-time, global):
-
-```console
-$ echo "$CLOUDSCALE_API_TOKEN" | sbx secret set -g cloudscale
-```
 
 ## Verify
 
