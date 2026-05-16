@@ -1,0 +1,28 @@
+schemaVersion: "1"
+kind: mixin
+name: nix
+displayName: Nix package manager
+description: Installs Nix in single-user mode. Base for layered Nix kits.
+
+network:
+  allowedDomains:
+    - nixos.org
+    - releases.nixos.org
+    - channels.nixos.org
+    - cache.nixos.org
+    - ports.ubuntu.com
+    - download.docker.com
+
+environment:
+  variables:
+    USER: agent
+
+commands:
+  install:
+    - command: "apt-get update && apt-get install -y xz-utils"
+      description: Install xz-utils (required by the Nix installer to unpack its tarball)
+    - command: "USER=agent HOME=/home/agent curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install | sh -s -- --no-daemon"
+      user: "1000"
+      description: Install Nix in single-user mode
+    - command: "echo '. /home/agent/.nix-profile/etc/profile.d/nix.sh' >> /etc/sandbox-persistent.sh"
+      description: Persist nix PATH activation so all shell sessions (including non-interactive) pick it up
