@@ -1,0 +1,43 @@
+schemaVersion: "1"
+kind: mixin
+name: devbox
+displayName: Devbox
+description: Installs Devbox on top of Nix for reproducible, per-project development environments.
+
+network:
+  allowedDomains:
+    - get.jetify.com                       # install: fetch installer script
+    - get.jetpack.io                       # install: redirect target for installer script
+    - releases.jetify.com                  # install: download devbox binary
+    - releases.jetpack.io                  # install: alternate binary download domain
+    - github.com                           # runtime: devbox self-update on first use
+    - release-assets.githubusercontent.com # runtime: GitHub release assets for devbox version
+    - api.github.com                       # runtime: nixpkgs version lookup
+    - codeload.github.com                  # runtime: nixpkgs archive download
+    - search.devbox.sh                     # runtime: devbox search package discovery
+
+commands:
+  install:
+    - command: "curl -fsSL https://get.jetify.com/devbox | bash -s -- -f"
+      description: Install Devbox non-interactively (-f flag skips confirmation prompt)
+      user: "1000"
+    - command: "devbox init"
+      description: Initialize devbox.json, init is idempotent
+      user: "1000"
+    - command: "devbox install"
+      description: Pre-warm packages from devbox.json
+      user: "1000"
+
+memory: |
+  ## Devbox
+
+  Devbox is installed in this sandbox. It manages reproducible package
+  environments via Nix (single-user, no daemon).
+
+  - To add a package: `devbox add <package>` then `devbox install`
+  - To run a command in the Devbox environment: `devbox run -- <command> [args]`
+    (the `--` separator is required so arguments are not misread as devbox flags)
+  - Always prefer `devbox run -- <cmd>` over bare `<cmd>` for packages
+    managed by Devbox — PATH is not modified globally
+  - Do not use `devbox shell` — it opens an interactive subshell and
+    will hang in a non-interactive context
