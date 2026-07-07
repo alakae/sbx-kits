@@ -9,6 +9,10 @@ offline development, cost-free experimentation, or testing with custom local mod
 > **Prerequisite:** Ollama must be running on your host machine at its default port
 > (`localhost:11434`) before starting this sandbox.
 
+> **Linux hosts:** `host.docker.internal` requires Docker to be started with
+> `--add-host=host.docker.internal:host-gateway`. If Ollama is unreachable, verify
+> this flag is set or use your host's LAN/bridge IP in place of `host.docker.internal`.
+
 ## Usage
 
 ```console
