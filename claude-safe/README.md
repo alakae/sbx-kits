@@ -27,8 +27,8 @@ The only difference is the entrypoint:
 ```
 
 Everything else — image, network, credentials, environment — mirrors the
-built-in agent so you keep the same Anthropic API credential handling,
-the same `IS_SANDBOX=1` hint, and persistent storage across restarts.
+built-in agent so you keep the same Anthropic API credential handling
+and the same `IS_SANDBOX=1` hint.
 
 ## Use this as a template for other forks
 
@@ -37,7 +37,7 @@ flags. Some ideas:
 
 - `[claude, "--model", "claude-opus-4-5"]` — pin a specific model
 - `[claude, "--append-system-prompt", "Always write tests before code."]`
-- Run a different base image entirely by swapping `agent.image`.
+- Run a different base image entirely by swapping `sandbox.image`.
 
 When you fork an agent, make sure the base image still provides the
 [agent user and proxy env vars the spec requires][reqs].
