@@ -10,6 +10,7 @@ A mixin that drops a collection of Claude Code skills into the sandbox workspace
 | `astral-ty` | Guides the agent to use ty for Python type checking |
 | `astral-uv` | Guides the agent to use uv for Python package and project management |
 | `fix-dependabot` | Resolves peer dependency conflicts on Dependabot branches |
+| `kit-author` | Guides the agent to author Docker Sandboxes kits (spec.yaml, lifecycle, composition, distribution, TCK testing) |
 | `review-claude-config` | Audits `.claude/` configuration files against best practices |
 | `session-review` | End-of-session retrospective — proposes skill and settings improvements |
 
