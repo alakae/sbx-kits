@@ -1,0 +1,71 @@
+name: Kit tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  list-kits:
+    runs-on: ubuntu-latest
+    outputs:
+      kits: ${{ steps.list.outputs.kits }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: List kits
+        id: list
+        run: |
+          kits=$(for f in */spec.yaml */spec.yml; do [ -f "$f" ] && dirname "$f"; done | sort -u | jq -R . | jq -sc .)
+          echo "kits=${kits:-[]}" >> "$GITHUB_OUTPUT"
+          echo "Detected kits: $kits"
+
+  test-kit:
+    needs: list-kits
+    strategy:
+      fail-fast: false
+      matrix:
+        kit: ${{ fromJson(needs.list-kits.outputs.kits) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install sbx CLI
+        run: |
+          set -euo pipefail
+          VERSION=$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            https://api.github.com/repos/docker/sbx-releases/releases/latest \
+            | jq -r .tag_name)
+          echo "Resolved latest sbx version: ${VERSION}"
+
+          curl -fsSL \
+            "https://github.com/docker/sbx-releases/releases/download/${VERSION}/DockerSandboxes-linux.tar.gz" \
+            -o /tmp/DockerSandboxes-linux.tar.gz
+          tar xzf /tmp/DockerSandboxes-linux.tar.gz -C /tmp
+
+          sudo PREFIX="${HOME}/.docker/sbx" /tmp/docker-sbx/install.sh
+          echo "${HOME}/.docker/sbx/bin" >> "$GITHUB_PATH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify sbx installation
+        run: sbx version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: false
+
+      - name: Install yamllint
+        run: |
+          uv tool install yamllint
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run kit tests for ${{ matrix.kit }}
+        run: ./scripts/test-kit.sh "${{ matrix.kit }}"

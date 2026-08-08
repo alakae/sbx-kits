@@ -66,6 +66,17 @@ $ sbx kit validate ./sbx-kits/ruff-lint
 $ sbx kit inspect  ./sbx-kits/ruff-lint
 ```
 
+`scripts/test-kit.sh <kit>` runs those two checks plus `shellcheck` and `yamllint`:
+
+```console
+$ uv tool install yamllint
+$ ./scripts/test-kit.sh ruff-lint
+```
+
+CI ([`.github/workflows/kit-tests.yml`](.github/workflows/kit-tests.yml)) runs the same
+script for every kit on each push, pull request, and weekly on a schedule (to catch
+drift from the `sbx` CLI itself, since CI always installs latest).
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).
