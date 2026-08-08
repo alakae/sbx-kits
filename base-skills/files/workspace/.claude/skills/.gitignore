@@ -1,0 +1,10 @@
+# Directories this kit drops here. Keep in sync with what base-skills
+# actually installs (see README) so target repos don't get untracked noise.
+# Lists itself too, so this .gitignore doesn't show up as untracked either.
+.gitignore
+astral-ruff/
+astral-ty/
+astral-uv/
+fix-dependabot/
+review-claude-config/
+session-review/

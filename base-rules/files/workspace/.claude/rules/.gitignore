@@ -1,0 +1,6 @@
+# Files this kit drops here. Keep in sync with what base-rules actually
+# installs (see README) so target repos don't get untracked noise.
+# Lists itself too, so this .gitignore doesn't show up as untracked either.
+.gitignore
+interaction.md
+stuck-escalation.md
