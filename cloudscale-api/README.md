@@ -6,15 +6,16 @@ real token.
 
 ## Usage
 
-Export your cloudscale API token in your shell before running the sandbox:
+The kit only declares *what* it needs — a `cloudscale` credential injected as
+an `Authorization: Bearer` header on requests to `api.cloudscale.ch`. *Where*
+the token lives on your host is a one-time setup, separate from the kit, via
+your [bindings file](https://docs.docker.com/ai/sandboxes/customize/kits/)
+(`~/.config/sbx/credentials.yaml`):
 
 ```console
-$  export CLOUDSCALE_API_TOKEN=your-token-here
+$ sbx secret set cloudscale
+Enter secret: <<your-token-here>>
 ```
-
-The mixin reads `CLOUDSCALE_API_TOKEN` from your host environment at sandbox
-creation time and injects it automatically into requests to `api.cloudscale.ch`.
-The token is never exposed inside the sandbox.
 
 ```console
 $ sbx run shell \
