@@ -3,4 +3,5 @@
 # Lists itself too, so this .gitignore doesn't show up as untracked either.
 .gitignore
 interaction.md
+network-policy.md
 stuck-escalation.md
