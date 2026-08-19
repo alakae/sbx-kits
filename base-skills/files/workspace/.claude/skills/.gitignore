@@ -2,11 +2,10 @@
 # actually installs (see README) so target repos don't get untracked noise.
 # Lists itself too, so this .gitignore doesn't show up as untracked either.
 .gitignore
-astral-ruff/
-astral-ty/
-astral-uv/
+ruff/
+ty/
+uv/
 fix-dependabot/
 kit-author/
 review-claude-config/
 session-review/
-kit-author/
