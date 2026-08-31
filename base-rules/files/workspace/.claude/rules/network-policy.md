@@ -5,10 +5,13 @@ When an outbound request inside the sandbox is blocked by network policy
 default deny policy" detail):
 
 1. Always show the exact `sbx policy allow network` command needed to
-   unblock it, scoped to this sandbox only:
+   unblock it, scoped to this sandbox only. Resolve the sandbox name
+   (e.g. via `echo $SANDBOX_VM_ID` or `hostname`) and substitute the
+   actual value into the command — never leave a literal
+   `$SANDBOX_VM_ID` placeholder for the user to fill in themselves:
 
    ```bash
-   sbx policy allow network --sandbox $SANDBOX_VM_ID <domain>
+   sbx policy allow network --sandbox <actual-sandbox-name> <domain>
    ```
 
    Do not suggest the global (all-sandboxes) form unless the user asks
