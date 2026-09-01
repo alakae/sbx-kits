@@ -1,8 +1,12 @@
 # claude-safe
 
 A fork of the built-in `claude` agent that **does not** pass
-`--dangerously-skip-permissions`. Every tool call prompts for approval,
-matching how you'd run Claude Code outside a sandbox.
+`--dangerously-skip-permissions`, and explicitly pins
+`--permission-mode default` so every tool call prompts for approval,
+matching how you'd run Claude Code outside a sandbox. (A bare `claude`
+invocation is not enough on its own: recent Claude Code versions default
+to `auto` mode on Pro/Max/Team plans, where a classifier silently
+approves most tool calls instead of prompting.)
 
 Addresses the community ask in
 [docker/sbx-releases#47](https://github.com/docker/sbx-releases/issues/47).
@@ -23,7 +27,7 @@ The only difference is the entrypoint:
 ```diff
  entrypoint:
 -  run: [claude, "--dangerously-skip-permissions"]
-+  run: [claude]
++  run: [claude, "--permission-mode", "default"]
 ```
 
 Everything else — image, network, credentials, environment — mirrors the
