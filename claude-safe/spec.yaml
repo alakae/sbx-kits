@@ -8,7 +8,7 @@ sandbox:
   image: "docker/sandbox-templates:claude-code-docker"
   aiFilename: CLAUDE.md
   entrypoint:
-    run: [claude, "--settings", '{"disableAutoMode":"disable"}']
+    run: [claude, "--settings", '{"disableAutoMode":"disable", "remoteControlAtStartup":false}']
 
 network:
   serviceDomains:

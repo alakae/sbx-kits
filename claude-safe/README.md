@@ -5,11 +5,13 @@ A fork of the built-in `claude` agent that **does not** pass
 every tool call prompts for approval, matching how you'd run Claude Code
 outside a sandbox.
 
-`--settings '{"disableAutoMode":"disable"}'` removes `auto` from the
-session entirely: it drops `auto` from the `Shift+Tab` mode cycle, forces
-the session's starting mode to `default`, and — since plan mode only
-routes shell commands through the auto-mode classifier when `auto` is
-available — makes plan mode prompt for them like every other mode. See
+`--settings '{"disableAutoMode":"disable", "remoteControlAtStartup":false}'`
+removes `auto` from the session entirely — dropping it from the
+`Shift+Tab` cycle, forcing the starting mode to `default`, and making
+plan mode prompt for shell commands instead of routing them through the
+classifier — and stops [Remote
+Control](https://code.claude.com/docs/en/remote-control) from
+auto-connecting. See
 [permission-modes](https://code.claude.com/docs/en/permission-modes) and
 [settings-reference](https://code.claude.com/docs/en/settings-reference).
 
@@ -32,7 +34,7 @@ The only difference is the entrypoint:
 ```diff
  entrypoint:
 -  run: [claude, "--dangerously-skip-permissions"]
-+  run: [claude, "--settings", '{"disableAutoMode":"disable"}']
++  run: [claude, "--settings", '{"disableAutoMode":"disable", "remoteControlAtStartup":false}']
 ```
 
 Everything else — image, network, credentials, environment — mirrors the
