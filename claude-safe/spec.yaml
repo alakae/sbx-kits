@@ -2,13 +2,13 @@ schemaVersion: "1"
 kind: sandbox
 name: claude-safe
 displayName: Claude Code (approval mode)
-description: A fork of the built-in claude agent that runs without --dangerously-skip-permissions, so every tool call requires explicit approval
+description: A fork of the built-in claude agent that runs without --dangerously-skip-permissions and with auto mode disabled, so every tool call requires explicit approval
 
 sandbox:
   image: "docker/sandbox-templates:claude-code-docker"
   aiFilename: CLAUDE.md
   entrypoint:
-    run: [claude, "--permission-mode", "default"]
+    run: [claude, "--settings", '{"disableAutoMode":"disable"}']
 
 network:
   serviceDomains:

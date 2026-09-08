@@ -1,12 +1,17 @@
 # claude-safe
 
 A fork of the built-in `claude` agent that **does not** pass
-`--dangerously-skip-permissions`, and explicitly pins
-`--permission-mode default` so every tool call prompts for approval,
-matching how you'd run Claude Code outside a sandbox. (A bare `claude`
-invocation is not enough on its own: recent Claude Code versions default
-to `auto` mode on Pro/Max/Team plans, where a classifier silently
-approves most tool calls instead of prompting.)
+`--dangerously-skip-permissions`, and disables `auto` mode entirely so
+every tool call prompts for approval, matching how you'd run Claude Code
+outside a sandbox.
+
+`--settings '{"disableAutoMode":"disable"}'` removes `auto` from the
+session entirely: it drops `auto` from the `Shift+Tab` mode cycle, forces
+the session's starting mode to `default`, and — since plan mode only
+routes shell commands through the auto-mode classifier when `auto` is
+available — makes plan mode prompt for them like every other mode. See
+[permission-modes](https://code.claude.com/docs/en/permission-modes) and
+[settings-reference](https://code.claude.com/docs/en/settings-reference).
 
 Addresses the community ask in
 [docker/sbx-releases#47](https://github.com/docker/sbx-releases/issues/47).
@@ -27,7 +32,7 @@ The only difference is the entrypoint:
 ```diff
  entrypoint:
 -  run: [claude, "--dangerously-skip-permissions"]
-+  run: [claude, "--permission-mode", "default"]
++  run: [claude, "--settings", '{"disableAutoMode":"disable"}']
 ```
 
 Everything else — image, network, credentials, environment — mirrors the
