@@ -1,49 +1,61 @@
 # devbox
 
-A mixin that installs [Devbox](https://www.jetify.com/devbox) on top of Nix,
-enabling per-project reproducible development environments managed via
-`devbox.json`.
-
-Designed to be stacked on top of the `nix` mixin kit.
+A v3 mixin that adds [Devbox](https://www.jetify.com/devbox) for
+per-project reproducible development environments managed via
+`devbox.json`. Devbox and the Nix it drives are pinned by one nixpkgs
+commit.
 
 ## Usage
 
-Stack with the `nix` kit:
-
 ```console
-$ sbx run shell --kit "git+https://github.com/alakae/sbx-kits.git#dir=nix" \
-                --kit "git+https://github.com/alakae/sbx-kits.git#dir=devbox"
+$ sbx run docker.io/docker/sbx-kit-shell:1.0.0 \
+    --kit "git+https://github.com/alakae/sbx-kits.git#dir=devbox" ~/my-project
 ```
 
-Or from a local clone:
-
-```console
-$ sbx run shell --kit ./nix/ --kit ./devbox/
-```
+Standalone: it needs no other kit. Devbox cannot work without Nix, so
+this overlay carries its own, and it declares `conflicts: ["nix"]`, so
+composing it with the [`nix`](../nix) mixin is refused rather than
+breaking at runtime.
 
 ## What it adds
 
-- `devbox` CLI on `PATH` (installed to `/usr/local/bin`)
-- Network access to Jetify download endpoints (install-time) and GitHub +
-  nixpkgs infrastructure (runtime package resolution)
+- `devbox` and the Nix CLI it drives, linked into `/usr/local/bin`,
+  built from nixpkgs on `FROM scratch` — the shape of Docker's
+  [`gh` example](https://github.com/docker/sandbox-kit-spec/tree/main/examples/gh).
+- A **registered**, agent-owned store (`nix copy` at build time, `/nix`
+  owned by uid 1000), so devbox can install packages and
+  `nix-collect-garbage` keeps devbox and its Nix. No store setup hook.
+- An install hook that pre-warms packages when the workspace already has
+  a `devbox.json`. It runs in your workspace, so like any `devbox install`
+  it writes `devbox.lock` and a `.devbox/` directory there (on the host),
+  and it adds the download time to sandbox creation — about 70 s for
+  `hello` on a fresh sandbox.
+- Network access for devbox's package resolution: `cache.nixos.org`,
+  `api.github.com` / `github.com` / `codeload.github.com` (nixpkgs
+  lookup and archive) and `search.devbox.sh`, all reads only. Devbox
+  resolves its own nixpkgs per project.
 
-Note: Devbox performs a self-update to its cached version on first use
-(`devbox init`, `devbox add`, etc.), which downloads a release from GitHub.
-The required domains are included in the network policy.
+## Bumping
 
-## Verify
+Edit the nixpkgs commit in `devbox.dockerfile`, rebuild, and update
+`provides` in `devbox.yaml` and `EXPECTED_DEVBOX_VERSION` in `devbox.dockerfile` (the build
+fails while they disagree with the pin) from `docker run --rm <image>` (it prints the
+devbox version).
+
+## Build and verify
 
 ```console
-$ sbx kit validate ./devbox
-$ sbx kit inspect  ./devbox
+$ cd devbox
+$ docker buildx build . -f devbox.yaml --output type=cacheonly   # validate
+$ docker buildx build . -f devbox.yaml -t devbox-kit:dev --load   # build
+$ docker run --rm devbox-kit:dev                                  # 0.17.5
 ```
 
-Smoke test inside a sandbox (stacked on `nix`):
+Smoke test inside a sandbox:
 
 ```console
-$ devbox version
 $ devbox init
-$ devbox add nodejs@latest
-$ devbox shell
-$ node --version
+$ devbox add hello
+$ devbox run -- hello
+Hello, world!
 ```
