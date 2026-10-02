@@ -5,13 +5,17 @@ A fork of the built-in `claude` agent that **does not** pass
 every tool call prompts for approval, matching how you'd run Claude Code
 outside a sandbox.
 
-`--settings '{"disableAutoMode":"disable", "remoteControlAtStartup":false}'`
-removes `auto` from the session entirely — dropping it from the
-`Shift+Tab` cycle, forcing the starting mode to `default`, and making
-plan mode prompt for shell commands instead of routing them through the
-classifier — and stops [Remote
+A Claude Code [managed
+settings](https://code.claude.com/docs/en/settings) drop-in at
+`/etc/claude-code/managed-settings.d/claude-safe.json` turns off bypass mode
+(including `--dangerously-skip-permissions`), removes `auto` from the session
+entirely — dropping it from the `Shift+Tab` cycle, forcing the starting mode
+to `default`, and making plan mode prompt for shell commands instead of
+routing them through the classifier — and stops [Remote
 Control](https://code.claude.com/docs/en/remote-control) from
-auto-connecting. See
+auto-connecting. Managed settings outrank user, project and command-line
+settings, so neither the agent nor a project's `.claude/settings.json` can
+turn these back on. See
 [permission-modes](https://code.claude.com/docs/en/permission-modes) and
 [settings-reference](https://code.claude.com/docs/en/settings-reference).
 
@@ -21,20 +25,24 @@ Addresses the community ask in
 ## Usage
 
 ```console
-$ sbx run claude-safe --kit "git+https://github.com/alakae/sbx-kits.git#dir=claude-safe" ~/my-project
+$ sbx run "git+https://github.com/alakae/sbx-kits.git#dir=claude-safe" ~/my-project
 ```
 
-The agent name passed to `sbx run` (`claude-safe`) matches the `name:` field
-in the kit's `spec.yaml`.
+The kit is the first argument of `sbx run`, where a built-in agent name would
+go. [`claude-safe-mixin`](../claude-safe-mixin) ships the same policy as a
+mixin, for other workloads that carry Claude Code.
 
 ## What changed vs the built-in `claude`
 
-The only difference is the entrypoint:
+The kit is a fork of [docker/sbx-kits-contrib's `claude`
+kit](https://github.com/docker/sbx-kits-contrib/tree/7f8518ce98d439a35096ff7f6d00e9b8f65b0f53/claude)
+(see [NOTICE.md](./NOTICE.md)). The differences are the managed settings
+drop-in above, the entrypoint, and install hooks that no longer seed
+bypass-mode settings:
 
 ```diff
- entrypoint:
--  run: [claude, "--dangerously-skip-permissions"]
-+  run: [claude, "--settings", '{"disableAutoMode":"disable", "remoteControlAtStartup":false}']
+-ENTRYPOINT ["claude", "--dangerously-skip-permissions"]
++ENTRYPOINT ["claude"]
 ```
 
 Everything else — image, network, credentials, environment — mirrors the
@@ -43,12 +51,12 @@ and the same `IS_SANDBOX=1` hint.
 
 ## Use this as a template for other forks
 
-Copy `spec.yaml` and change the `entrypoint.run` array to pass your own
-flags. Some ideas:
+Copy the kit and change the `ENTRYPOINT` in `claude-safe.dockerfile` to pass
+your own flags. Some ideas:
 
-- `[claude, "--model", "claude-opus-4-5"]` — pin a specific model
-- `[claude, "--append-system-prompt", "Always write tests before code."]`
-- Run a different base image entirely by swapping `sandbox.image`.
+- `["claude", "--model", "claude-opus-4-5"]` — pin a specific model
+- `["claude", "--append-system-prompt", "Always write tests before code."]`
+- Run a different base image entirely by changing `BASE_IMAGE`.
 
 When you fork an agent, make sure the base image still provides the
 [agent user and proxy env vars the spec requires][reqs].
