@@ -15,6 +15,11 @@ My personal collection of kits for
 > ...#dir=claude-safe`) no longer work; use the forms below. The format and
 > CLI are still changing. The kit pages on docs.docker.com still describe the
 > older `spec.yaml` format.
+>
+> `sbx` builds local and git kits with your Docker, which needs the
+> **containerd image store**. On Docker Desktop, turn on Settings → General →
+> "Use containerd for pulling and storing images". Without it, the build fails
+> with "OCI exporter is not supported for the docker driver".
 
 ## My base Claude
 
