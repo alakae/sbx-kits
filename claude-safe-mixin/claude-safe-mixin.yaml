@@ -1,0 +1,50 @@
+# syntax=docker/sandbox-kit:3
+# Claude Code's approval mode as a MIXIN: the managed policy only, layered
+# onto any workload that already carries Claude Code. It does not own the
+# launch command, so the base keeps its own entrypoint; the policy still
+# applies because Claude Code's managed settings
+# outrank command-line flags. On the published docker.io/docker/sbx-kit-claude
+# image, whose entrypoint is `claude --dangerously-skip-permissions`, the flag
+# is then refused and the session runs in the default (prompting) mode.
+schemaVersion: "3"
+kind: mixin
+displayName: Claude Code approval mode (mixin)
+description: >-
+  Starts Claude Code in Manual mode, disables bypass-permissions mode and
+  Remote Control at startup, keeps auto mode for when the user explicitly picks
+  it (but out of plan mode), and ignores permission rules outside the managed
+  policy. Layer it onto any workload that carries Claude Code.
+
+# The kit's own release number; bump it when the policy changes.
+#
+# The policy also sets `allowManagedPermissionRulesOnly`. Disabling bypass
+# mode alone leaves a gap: permission rules from user, project and local
+# settings still apply, and the claude workload pre-accepts workspace trust,
+# so a repository's .claude/settings.json with `"allow": ["Bash"]` would have
+# its Bash calls run without approval (verified on sbx v0.49.1 with a stub
+# API asking for a Bash call). With the key, only managed rules count and the
+# same call is refused.
+#
+# Auto mode stays available, but is not the default.
+# `permissions.defaultMode: "default"` starts every session in Manual —
+# over the workload's `bypassPermissions` user setting, a user's `auto`, and
+# Claude Code's built-in auto default — while `--permission-mode auto` and
+# Shift+Tab still reach auto. `useAutoModeDuringPlan: false` keeps the
+# classifier out of plan mode. Verified on sbx v0.49.1: the workload's
+# --dangerously-skip-permissions starts in `default`, an explicit
+# --permission-mode auto in `auto`, and a non-read-only command in plan mode
+# is refused without a classifier request.
+version: "1.0.0"
+
+# The policy is only meaningful where Claude Code runs. Any kit providing
+# `claude` satisfies this: the published docker.io/docker/sbx-kit-claude
+# image, or this repo's claude-ollama.
+requires: ["claude"]
+
+# No network, credential or hooks: the overlay is the whole kit.
+capabilities:
+  # `filename:` is workload-only; a mixin contributes a body to the base's
+  # context file.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      contentFile: ./claude-safe-mixin-context.md
