@@ -6,7 +6,7 @@ description: >
   Also handles the case where Dependabot silently omitted a companion package
   from a grouped PR due to shallow peer dependency detection or lockfile-reparse
   drop, a known limitation as of early 2026.
-user-invokable: true
+user-invocable: true
 disable-model-invocation: false
 ---
 

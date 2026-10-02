@@ -6,10 +6,11 @@ description: Vendor a Claude Code skill from an external GitHub repo into base-s
 # Vendor a skill into base-skills
 
 Copies a skill's files verbatim from an external GitHub repo into this
-repo's `.claude/skills/vendor-skill/` sibling kit payload (normally
-`base-skills/files/workspace/.claude/skills/<name>/`), pinned to a specific
-commit SHA, with the same `NOTICE.md` + `LICENSE-<TYPE>` attribution pattern
-used for the existing skills.
+repo's kit payload (`base-skills/skills/<name>/`, exposed directly in the
+composed agent's own skill directory via the `agent-skill@1` capability —
+never copied into the workspace), pinned to a specific commit SHA, with the
+same `NOTICE.md` + `LICENSE-<TYPE>` attribution pattern used for the
+existing skills.
 
 This skill is repo-maintenance tooling for `sbx-kits` itself. It is **not**
 shipped as part of `base-skills`'s payload.
@@ -19,9 +20,14 @@ shipped as part of `base-skills`'s payload.
 Ask the user (or infer from what they gave you) for:
 
 - The source repo (`org/repo`) and the path within it (e.g. `skills/some-skill`).
-- The target skill directory name under `base-skills/files/workspace/.claude/skills/`
+- The target skill directory name under `base-skills/skills/`
   (usually the same as the source's leaf directory name, but ask if ambiguous
-  or if it collides with an existing skill).
+  or if it collides with an existing skill). It must equal the vendored
+  `SKILL.md`'s frontmatter `name:` — `agent-skill@1`'s effective skill name
+  defaults to the directory's basename, and OpenCode separately requires the
+  two to match. If the source's leaf directory name differs from its own
+  `SKILL.md` `name:`, use the frontmatter name for the directory, not the
+  source's.
 - A specific commit SHA/tag, if the user gave one. Otherwise default to the
   **current HEAD of the source repo's default branch** at fetch time — don't
   silently pick the last commit that merely touched the path unless the user
@@ -117,12 +123,19 @@ copyright holder/year line must match the actual source.
 
 ## Step 5 — Bookkeeping
 
-- Add `<skill-name>/` to `base-skills/files/workspace/.claude/skills/.gitignore`
-  (alphabetical, matching the existing entries).
+- Add a new `agent-skill@1` entry to `base-skills/base-skills.yaml`:
+  ```yaml
+  - type: com.docker.sandbox/agent-skill@1
+    config:
+      path: /usr/share/base-skills/<skill-name>
+  ```
+  No `config.name` override needed as long as the directory name equals the
+  frontmatter `name:` (see the Inputs section above) — `base-skills.dockerfile`
+  already stages the whole `skills/` tree, so a new subdirectory there needs
+  no dockerfile change.
 - Add a row to the skills table in `base-skills/README.md` (alphabetical).
-- Do **not** also add it to this repo's root `.claude/skills/.gitignore` or
-  copy it into the root `.claude/skills/` directory. Treat it as local
-  scratch state, not something this skill manages.
+- Do **not** copy it into this repo's root `.claude/skills/` directory; the
+  only skill tracked there is this one.
 
 ## Updating an already-vendored skill to a newer SHA
 
