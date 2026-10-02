@@ -1,0 +1,42 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v1 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+#
+# An overlay mixin plus one startup hook: base-rules.dockerfile stages the
+# rules under /usr/local/share/base-rules/, and the hook below copies them
+# into the workspace.
+schemaVersion: "3"
+kind: mixin
+displayName: Base Rules
+description: My base Claude Code behavioral rules used across many different repos
+
+# MIGRATION NOTE: v1's `name:` is dropped, and v3 needs a version. This is the
+# kit's own release number; bump it when the rules change.
+version: "1.0.0"
+
+# No `requires`: the rules are plain Markdown and harmless on a base without
+# Claude Code, so the kit composes onto any workload.
+
+capabilities:
+  # As in v1, the rules land in the workspace's .claude/rules/, together with
+  # a self-listing .gitignore so they don't show up as untracked in the repo.
+  #
+  # MIGRATION NOTE: v1 copied files/workspace/ at create, before the agent
+  # started. v3 has no files/ convention, so a STARTUP hook copies them:
+  # install hooks can run before the workspace is mounted. Startup hooks run
+  # in the background at boot, so on the very first session the agent may
+  # start before the copy lands; the next session sees them.
+  #
+  # The kit's files overwrite same-named files in .claude/rules/ on every
+  # boot, so rule updates reach the repo. Other files there are untouched.
+  # `set -u` aborts instead of writing to /.claude if WORKSPACE_DIR is unset.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      startup:
+        - command: |
+            set -eu
+            cd "$WORKSPACE_DIR"
+            mkdir -p .claude/rules
+            cp -R /usr/local/share/base-rules/rules/. .claude/rules/
+          user: "1000"
+          env: [WORKSPACE_DIR]
+          description: Copy the base rules into the workspace's .claude/rules
