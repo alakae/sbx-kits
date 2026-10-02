@@ -1,0 +1,44 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: mixin
+displayName: Ruff Linter
+description: Python linting with shared team config
+sourceUrl: https://github.com/astral-sh/ruff
+licenses: [MIT]
+
+# The kit's own release number, independent of the Ruff version, which is
+# pinned via `args.version`.
+version: "1.0.0"
+
+# ruff-lint.dockerfile pip-installs Ruff's musllinux wheel in an Alpine build
+# stage and copies just the binary into a `scratch` overlay, per "Build a tool
+# mixin" / "Leave build tools out of the mixin"
+# (docs.docker.com/ai/sandboxes/customize/author/tool-mixins/ and .../patterns/).
+# That binary is statically linked, so it runs on glibc and musl bases alike,
+# and the composed workload needs no `uv`, Python, or PyPI access. Astral's
+# own static image (ghcr.io/astral-sh/ruff) is not used: its aarch64 binary
+# aborts with "<jemalloc>: Unsupported system page size" on the 16K-page
+# kernel of sbx VMs on Apple Silicon.
+args:
+  version:
+    default: "0.17.1"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    description: Ruff release to install (a PyPI ruff version)
+    buildArg: RUFF_VERSION
+
+provides: ["ruff@${{ kit.args.version }}"]
+
+capabilities:
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      files:
+        # Ruff's user-level config, so nothing is written into the
+        # repository. A project's own ruff.toml or pyproject.toml takes
+        # precedence over it.
+        - path: /home/agent/.config/ruff/ruff.toml
+          content: |
+            line-length = 80
+
+            [lint]
+            select = ["E", "F", "I"]
+          description: Shared Ruff config (user-level fallback)
