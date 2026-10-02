@@ -1,0 +1,112 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: workload
+displayName: Junie Local (MLX)
+description: >-
+  Junie wired to the junie-mlx-vlm engine running on the host. Junie is baked
+  into the image at build time, so no cloud model provider is reachable and
+  nothing is fetched at sandbox creation.
+
+# Junie is pinned. The installer takes JUNIE_VERSION (Junie's build number, the
+# one in parentheses in `junie --version`), so one arg drives the install, the
+# provide, the descriptor's version and the publish tag, and the recipe fails
+# the build if the installed binary is anything else. Bump it from
+# https://raw.githubusercontent.com/jetbrains-junie/junie/main/update-info.jsonl
+version: "${{ kit.args.version }}"
+
+args:
+  version:
+    default: "3813.10"
+    pattern: '^[0-9]+\.[0-9]+$'
+    description: Junie build to install (26.10.20 is build 3813.10)
+    buildArg: JUNIE_VERSION
+
+# `junie-local`, not `junie`: this kit reaches no cloud provider, so it should
+# not satisfy kits written for the regular Junie agent.
+provides: ["junie-local@${{ kit.args.version }}"]
+
+# A workload's content IS its image, built from junie-local.dockerfile beside
+# this file, and the ENTRYPOINT lives there. `sbx run ./junie-local` builds it
+# locally.
+
+capabilities:
+  # The host launches the agent and honours the identity the image config
+  # declares.
+  - type: com.docker.sandbox/sbx@1
+
+  # Junie is baked into the image and the kit runs no hooks, so everything is
+  # `runtime`.
+  #
+  # `localhost:19239`, not `host.docker.internal:19239`. The model profile
+  # points Junie at http://host.docker.internal:19239, but the sandbox proxy
+  # rewrites that host to `localhost` before it checks the allow list, so a
+  # `host.docker.internal:19239` entry never matches: verified with sbx v0.49.1,
+  # where the request was held as "Approval required for localhost:19239" and
+  # `sbx policy log` named localhost:19239.
+  # It reaches the host's loopback, which is where the engine listens.
+  #
+  # The port stays: this is the host itself, so dropping it would open every
+  # port on the host instead of the one engine.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - localhost:19239
+
+  # The engine's bearer token, from install.sh's server-config.json. Bind it on
+  # the host with `sbx secret set junie-local`.
+  #
+  # Required: without the token every request to the engine fails, so a
+  # sandbox without it is not a working configuration.
+  - type: com.docker.sandbox/credential@1
+    description: Bearer token from ~/.local/share/junie-local/server-config.json
+    config:
+      service: junie-local
+      phase: runtime
+      apiKey:
+        name: JUNIE_LOCAL_API_KEY
+        proxyManaged: true
+        # The inject domain is the rewritten name the proxy sees, like the allow
+        # entry above, which validation requires it to match exactly. With
+        # host.docker.internal:19239 here the header is never added.
+        inject:
+          - {domain: "localhost:19239", header: Authorization, format: "Bearer %s"}
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      files:
+        # Mirrors the host profile from install.sh, with localhost swapped for
+        # host.docker.internal and the token replaced by the proxy sentinel.
+        # Inside the sandbox `localhost` is the sandbox itself, so the profile
+        # names host.docker.internal; the proxy turns that back into the host's
+        # localhost:19239, which is what the policy above allows.
+        - path: /home/agent/.junie/models/local-qwen3.6-27b-4bit.json
+          mode: "0600"
+          description: Junie custom-model profile pointing at the host engine
+          content: |
+            {
+              "displayName": "Qwen 3.6",
+              "providerName": "Local",
+              "id": "Qwen3.6-27B-MLX-4bit",
+              "baseUrl": "http://host.docker.internal:19239/v1/chat/completions",
+              "apiType": "OpenAICompletion",
+              "apiKey": "proxy-managed",
+              "temperature": 0.6,
+              "maxContextLength": 150000,
+              "extraBody": {
+                "enable_thinking": false
+              }
+            }
+
+  # Body in junie-local-context.md, with an explicit `directory`. With
+  # `filename` alone the runtime writes the profile beside the workspace (/home/ubuntu/AGENTS.md for a
+  # workspace at /home/ubuntu/ws), and Junie never reads it: it reads the
+  # project root and its user-level ~/.junie/AGENTS.md. Verified by planting
+  # a marker in each candidate path and looking for it in the request Junie
+  # sends to the engine — only ~/.junie/AGENTS.md (and the project's own
+  # .junie/guidelines.md) reached it.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      filename: AGENTS.md
+      directory: /home/agent/.junie
+      contentFile: ./junie-local-context.md
