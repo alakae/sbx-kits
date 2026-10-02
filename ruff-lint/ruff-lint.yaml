@@ -1,0 +1,44 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v1 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+schemaVersion: "3"
+kind: mixin
+displayName: Ruff Linter
+description: Python linting with shared team config
+
+# MIGRATION NOTE: v1's `name:` is dropped, and v3 needs a version. The kit's
+# own release number used to double for this since Ruff installed at
+# `latest`; now that a Ruff version is pinned via `args.version`, this stays
+# the kit's own release number, independent of the Ruff version.
+version: "1.0.0"
+
+# REWORK NOTE: Ruff used to be installed with `uv tool install ruff@latest`
+# in a runtime lifecycle hook — a floating version, no `provides`, and a
+# dependency on the workload already having `uv`. ruff-lint.dockerfile now
+# builds the pinned version with `uv tool install` in its own build stage and
+# copies just the resulting binary into a `scratch` final stage, per "Build a
+# tool mixin" / "Leave build tools out of the mixin"
+# (docs.docker.com/ai/sandboxes/customize/author/tool-mixins/ and .../patterns/).
+# The composed workload no longer needs `uv`, Python, or PyPI access at all.
+args:
+  version:
+    default: "0.8.4"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    buildArg: RUFF_VERSION
+
+provides: ["ruff@${{ kit.args.version }}"]
+
+capabilities:
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      files:
+        # MIGRATION NOTE: v1 copied files/workspace/ruff.toml into the
+        # workspace. It now goes to Ruff's user-level config, so nothing is
+        # written into the repository. A project's own ruff.toml or
+        # pyproject.toml takes precedence over it.
+        - path: /home/agent/.config/ruff/ruff.toml
+          content: |
+            line-length = 80
+
+            [lint]
+            select = ["E", "F", "I"]
+          description: Shared Ruff config (user-level fallback)
