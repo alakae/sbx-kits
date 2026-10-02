@@ -1,5 +1,0 @@
-schemaVersion: "2"
-kind: mixin
-name: base-skills
-displayName: Base Skills
-description: My base agent skills (Claude Code, OpenCode) used across many different repos
