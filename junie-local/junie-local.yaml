@@ -1,0 +1,97 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v2 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+schemaVersion: "3"
+kind: workload
+displayName: Junie Local (MLX)
+description: >-
+  Junie wired to the junie-mlx-vlm engine running on the host. Junie is baked
+  into the image at build time, so no cloud model provider is reachable and
+  nothing is fetched at sandbox creation.
+
+# MIGRATION NOTE: v2's `name:` is dropped, and v3 needs a version. The recipe
+# installs Junie's current stable release, so this is the kit's own release
+# number rather than Junie's.
+version: "1.0.0"
+
+# `junie-local`, not `junie`: this kit reaches no cloud provider, so it should
+# not satisfy kits written for the regular Junie agent.
+provides: ["junie-local"]
+
+# MIGRATION NOTE: v2's `sandbox.image` and `sandbox.entrypoint` have no v3
+# fields. A workload's content IS its image, built from junie-local.dockerfile
+# beside this file (v2's Dockerfile, renamed), and the ENTRYPOINT lives there.
+# `sbx run ./junie-local` builds it locally, which replaces v2's
+# `docker build` / `docker save` / `sbx template load` steps.
+
+capabilities:
+  # The host launches the agent and honours the identity the image config
+  # declares. Every v2 `kind: sandbox` kit is sbx-launched.
+  - type: com.docker.sandbox/sbx@1
+
+  # MIGRATION NOTE: v2's flat list becomes phase-scoped. Junie is baked into
+  # the image and the kit runs no hooks, so everything is `runtime`.
+  #
+  # MIGRATION NOTE: v2 allowed `localhost:19239`, the translated address the
+  # proxy rewrote host.docker.internal to. This follows docker/sbx-kits-contrib's
+  # v3 form and allows `host.docker.internal:19239`, the hostname the model
+  # profile uses. It is not yet verified against a running engine; if requests
+  # are blocked, `sbx policy log` shows which form the proxy matched.
+  #
+  # The port stays: host.docker.internal is the host itself, so dropping it
+  # would open every port on the host instead of the one engine.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - host.docker.internal:19239
+
+  # The engine's bearer token, from install.sh's server-config.json. Bind it on
+  # the host with `sbx secret set junie-local`.
+  #
+  # Required, as in v2 (`required: true`): without the token every request to
+  # the engine fails, so a sandbox without it is not a working configuration.
+  - type: com.docker.sandbox/credential@1
+    description: Bearer token from ~/.local/share/junie-local/server-config.json
+    config:
+      service: junie-local
+      phase: runtime
+      apiKey:
+        name: JUNIE_LOCAL_API_KEY
+        proxyManaged: true
+        # MIGRATION NOTE: the inject domain follows the allow list above
+        # (was localhost:19239); v3 validation requires the two to match
+        # exactly.
+        inject:
+          - {domain: "host.docker.internal:19239", header: Authorization, format: "Bearer %s"}
+
+  # MIGRATION NOTE: v2's `setup.files` becomes lifecycle@1 `files:`.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      files:
+        # Mirrors the host profile from install.sh, with localhost swapped for
+        # host.docker.internal and the token replaced by the proxy sentinel.
+        - path: /home/agent/.junie/models/local-qwen3.6-27b-4bit.json
+          mode: "0600"
+          description: Junie custom-model profile pointing at the host engine
+          content: |
+            {
+              "displayName": "Qwen 3.6",
+              "providerName": "Local",
+              "id": "Qwen3.6-27B-MLX-4bit",
+              "baseUrl": "http://host.docker.internal:19239/v1/chat/completions",
+              "apiType": "OpenAICompletion",
+              "apiKey": "proxy-managed",
+              "temperature": 0.6,
+              "maxContextLength": 150000,
+              "extraBody": {
+                "enable_thinking": false
+              }
+            }
+
+  # MIGRATION NOTE: v2's `agentInstructions` becomes agent-context@1, body in
+  # junie-local-context.md. `filename` is workload-only: it names the profile
+  # this kit owns.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      filename: AGENTS.md
+      contentFile: ./junie-local-context.md
