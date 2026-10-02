@@ -1,0 +1,60 @@
+# syntax=docker/sandbox-kit:3
+# The skills are delivered with `agent-skill@1`, which exposes a bundled skill
+# directly in the composed agent's own skill directory (Claude's
+# ~/.claude/skills, OpenCode's ~/.config/opencode/skills, ...) without
+# touching the workspace: no copy into .claude/skills/, no .gitignore, and no
+# race with the first session. One entry per skill below; the dockerfile
+# stages each skill's directory, unchanged, under /usr/share/base-skills/<name>.
+schemaVersion: "3"
+kind: mixin
+displayName: Base Skills
+description: My base agent skills (Claude Code, OpenCode) used across many different repos
+
+# The kit's own release number; bump it when the skills change.
+version: "1.0.0"
+
+capabilities:
+  # Every entry is `optional: true`. A required agent-skill@1 with no
+  # agent-skills@1 destination in the composition refuses the whole sandbox
+  # ("kit set bundles the skills ... but declares no agent-skills@1
+  # destination"), as on docker.io/docker/sbx-kit-shell and any other
+  # workload without a skill directory. Optional, the skills are skipped
+  # there and exposed wherever the agent declares a destination (Claude
+  # Code, OpenCode).
+  #
+  # No `config.name` overrides below: every skill's SKILL.md frontmatter
+  # `name:` already equals its directory name (verified), so the effective
+  # skill name the runtime exposes already matches what each skill's own
+  # text expects to be called.
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/ruff
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/ty
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/uv
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/fix-dependabot
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/create-kit-v3
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/migrate-kit-to-v3
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/review-claude-config
+  - type: com.docker.sandbox/agent-skill@1
+    optional: true
+    config:
+      path: /usr/share/base-skills/session-review
