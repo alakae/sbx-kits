@@ -1,0 +1,74 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v1 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+schemaVersion: "3"
+kind: mixin
+displayName: Nix package manager
+description: Installs Nix in single-user mode. Base for layered Nix kits.
+
+# MIGRATION NOTE: v1's `name:` is dropped, and v3 needs a version. The
+# installer fetches the current Nix release, so this is the kit's own release
+# number.
+version: "1.0.0"
+
+# `nix` is what layered kits (devbox) require.
+provides: ["nix"]
+
+# REWORK NOTE: Nix used to be installed by a runtime lifecycle install hook
+# (apt-get install xz-utils, then curl the installer), which is why this kit
+# used to declare `requires: ["deb/apt"]` — and why it refused to compose
+# onto anything that wasn't Debian-based. nix.dockerfile now builds the Nix
+# store in its own build stage (its own `FROM debian:trixie-slim`, unrelated
+# to whatever workload this mixin ends up composed onto) and copies only
+# `/nix` and `/home/agent`'s installer-created files into a `scratch` final
+# stage, per "Build a tool mixin" / "Leave build tools out of the mixin"
+# (docs.docker.com/ai/sandboxes/customize/author/tool-mixins/ and .../patterns/).
+# The composed workload no longer needs apt/deb at all, so `requires` is gone.
+
+capabilities:
+  # MIGRATION NOTE: v1 had one flat list; v3 is phase-scoped and an absent
+  # phase grants nothing.
+  #
+  # REWORK NOTE: the apt-mirror and nixos.org install-phase entries that used
+  # to be here are gone — the Dockerfile build now does all of that fetching
+  # on the *builder's* network, which needs no descriptor rule (same reasoning
+  # the docs give for the claude-mixin example's download). Only the
+  # runtime-phase hosts remain: the agent still reaches these interactively via
+  # `nix-shell` (binary cache) and `nix-channel --update` (channel tarballs).
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - nixos.org
+          - releases.nixos.org         # channel tarballs (redirect target)
+          - channels.nixos.org         # nixpkgs channel updates
+          - cache.nixos.org            # binary cache for pre-built packages
+
+  # MIGRATION NOTE: v1's `commands.install` becomes lifecycle@1.install.
+  # REWORK NOTE: the apt-get/curl install steps moved into nix.dockerfile's
+  # build stage (see above) and are gone from here. Only the
+  # /etc/sandbox-persistent.sh setup remains: it only needs `grep`/`echo`, not
+  # apt, so it's safe on any base — and it still has to run per-sandbox, since
+  # that file belongs to whichever workload this mixin is composed onto, not
+  # to the mixin's own image.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        # A `grep -qF` guard: install hooks can rerun against the same
+        # filesystem (e.g. the recreate behind `sbx kit add`), and a bare `>>`
+        # would append the line again each time. `export USER=agent` is
+        # written here because nix.sh silently skips its PATH exports when
+        # $USER is unset, and this file is what every shell, including the
+        # agent's non-interactive ones, sources.
+        - command: |
+            set -e
+            f=/etc/sandbox-persistent.sh
+            grep -qxF 'export USER=agent' "$f" 2>/dev/null || echo 'export USER=agent' >> "$f"
+            grep -qxF '. /home/agent/.nix-profile/etc/profile.d/nix.sh' "$f" 2>/dev/null || echo '. /home/agent/.nix-profile/etc/profile.d/nix.sh' >> "$f"
+          user: "0"
+          description: Persist nix PATH activation so all shell sessions (including non-interactive) pick it up
+
+  # MIGRATION NOTE: v1's `memory` becomes agent-context@1, body in
+  # nix-context.md.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      contentFile: ./nix-context.md
