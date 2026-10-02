@@ -1,9 +1,25 @@
+# Kit tests for the v3 kits in this repository.
+#
+# Adapted from docker/sbx-kits-contrib@7f8518ce98d439a35096ff7f6d00e9b8f65b0f53
+# .github/workflows/tck.yml (Apache-2.0); license text in scripts/LICENSE-APACHE,
+# changes listed in scripts/NOTICE.md.
+#
+#   test-kit   The gate. Builds every kit with the v3 kit frontend (which is
+#              what validates the descriptor) and lints it, via the same
+#              scripts/test-kit.sh authors run locally.
+#
+# There is no smoke/e2e job and no `sbx kit inspect` job: both need a real
+# sbx daemon backed by a sandbox runtime, which needs /dev/kvm. GitHub-hosted
+# runners don't expose it, so those checks stay manual and local
+# (`scripts/test-kit.sh --inspect`, `sbx run`; see README).
 name: Kit tests
 
 on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, to catch drift in the floating base images, the upstream
+  # installers the kits call, and the sbx CLI itself.
   schedule:
     - cron: "0 6 * * 1"
 
@@ -18,12 +34,27 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # scripts/discover-kits.sh is the single definition of what a kit is:
+      # a directory holding <dir>/<dir>.yaml.
       - name: List kits
         id: list
         run: |
-          kits=$(for f in */spec.yaml */spec.yml; do [ -f "$f" ] && dirname "$f"; done | sort -u | jq -R . | jq -sc .)
+          kits=$(./scripts/discover-kits.sh | jq -R . | jq -sc .)
           echo "kits=${kits:-[]}" >> "$GITHUB_OUTPUT"
           echo "Detected kits: $kits"
+
+  lint-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Parse-check and shellcheck scripts
+        run: |
+          for script in scripts/*.sh; do
+            echo "==> ${script}"
+            bash -n "$script"
+          done
+          shellcheck scripts/*.sh
 
   test-kit:
     needs: list-kits
@@ -32,30 +63,12 @@ jobs:
       matrix:
         kit: ${{ fromJson(needs.list-kits.outputs.kits) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install sbx CLI
-        run: |
-          set -euo pipefail
-          VERSION=$(curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            https://api.github.com/repos/docker/sbx-releases/releases/latest \
-            | jq -r .tag_name)
-          echo "Resolved latest sbx version: ${VERSION}"
-
-          curl -fsSL \
-            "https://github.com/docker/sbx-releases/releases/download/${VERSION}/DockerSandboxes-linux.tar.gz" \
-            -o /tmp/DockerSandboxes-linux.tar.gz
-          tar xzf /tmp/DockerSandboxes-linux.tar.gz -C /tmp
-
-          sudo PREFIX="${HOME}/.docker/sbx" /tmp/docker-sbx/install.sh
-          echo "${HOME}/.docker/sbx/bin" >> "$GITHUB_PATH"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify sbx installation
-        run: sbx version
+      # A current BuildKit for the `# syntax=docker/sandbox-kit:3` frontend.
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v3.11.1
 
       - name: Set up uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -67,5 +80,9 @@ jobs:
           uv tool install yamllint
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Run kit tests for ${{ matrix.kit }}
-        run: ./scripts/test-kit.sh "${{ matrix.kit }}"
+      # matrix.kit is a directory name from the checkout; passed via env so a
+      # name with shell metacharacters cannot inject commands.
+      - name: Build and lint ${{ matrix.kit }}
+        env:
+          KIT: ${{ matrix.kit }}
+        run: ./scripts/test-kit.sh "$KIT"
