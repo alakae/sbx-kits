@@ -1,0 +1,43 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v2 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+#
+# An overlay mixin plus one startup hook: base-skills.dockerfile stages the
+# skills under /usr/local/share/base-skills/, and the hook below copies them
+# into the workspace.
+schemaVersion: "3"
+kind: mixin
+displayName: Base Skills
+description: My base agent skills (Claude Code, OpenCode) used across many different repos
+
+# MIGRATION NOTE: v2's `name:` is dropped, and v3 needs a version. This is the
+# kit's own release number; bump it when the skills change.
+version: "1.0.0"
+
+capabilities:
+  # As in v2, the skills land in the workspace's .claude/skills/, which Claude
+  # Code and OpenCode both read, together with a self-listing .gitignore so
+  # they don't show up as untracked in the repo.
+  #
+  # MIGRATION NOTE: v2 copied files/workspace/ at create, before the agent
+  # started. v3 has no files/ convention, so a STARTUP hook copies them:
+  # install hooks can run before the workspace is mounted. Startup hooks run
+  # in the background at boot, so on the very first session the agent may
+  # start before the copy lands; the next session sees them.
+  #
+  # The kit's skills overwrite same-named directories in .claude/skills/ on
+  # every boot, so skill updates reach the repo. Other skills are untouched.
+  # `set -u` aborts instead of writing to /.claude if WORKSPACE_DIR is unset.
+  #
+  # The workspace is not where sbx mounts its shared skills store (that is
+  # ~/.claude/skills), so the copy works whatever `--skills` mode is used.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      startup:
+        - command: |
+            set -eu
+            cd "$WORKSPACE_DIR"
+            mkdir -p .claude/skills
+            cp -R /usr/local/share/base-skills/skills/. .claude/skills/
+          user: "1000"
+          env: [WORKSPACE_DIR]
+          description: Copy the base skills into the workspace's .claude/skills

@@ -1,6 +1,6 @@
 ---
 name: kit-author
-description: Author Docker Sandboxes kits (agents and mixins) — spec.yaml schema, full lifecycle from sourcing through composition, injection, and runtime, plus distribution and TCK testing.
+description: Author Docker Sandboxes kits in the legacy v2 format (agents and mixins) — spec.yaml schema, full lifecycle from sourcing through composition, injection, and runtime, plus distribution and TCK testing.
 globs:
   - "**/spec.yaml"
   - "**/spec.yml"
@@ -9,6 +9,15 @@ globs:
 ---
 
 # Kit Author Skill
+
+> **This skill describes the v2 kit format (`spec.yaml`, `schemaVersion: "2"`).**
+> Current Docker Sandboxes kits use v3: `<kit>/<kit>.yaml` starting with
+> `# syntax=docker/sandbox-kit:3`, typed capabilities, and kinds `workload`
+> and `mixin`. For v3, read the README and
+> [CONTRIBUTING.md, "Migrating a kit to v3"](https://github.com/docker/sbx-kits-contrib/blob/7f8518ce98d439a35096ff7f6d00e9b8f65b0f53/CONTRIBUTING.md#migrating-a-kit-to-v3)
+> in docker/sbx-kits-contrib, and use its kits as worked examples. Use the
+> topics below only for v1/v2 kits or for understanding what a v3 kit
+> migrated from.
 
 How to design, write, validate, and distribute kit artifacts (`kind: sandbox` and `kind: mixin`) for Docker Sandboxes. Kits are declarative — a `spec.yaml` plus an optional `files/` tree — and the `sbx` engine translates them into container customizations at sandbox creation or `kit add` time.
 
