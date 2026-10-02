@@ -1,0 +1,94 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v1 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+#
+# A declaration-only mixin: Devbox is installed by lifecycle hooks as in v1,
+# so there is no devbox.dockerfile.
+#
+# REWORK NOTE: unlike nix and ruff-lint, devbox was evaluated against (and
+# deliberately kept out of) the "Build a tool mixin" build-stage-then-copy
+# pattern. Jetify's installer places a self-updating launcher shim at
+# /usr/local/bin/devbox, not the real binary — the shim downloads the actual
+# versioned binary into ~/.cache/devbox/bin/... on first invocation
+# regardless of how/when it was installed. Baking the shim into a build
+# stage doesn't remove that runtime network dependency, so the install hook
+# below stays as the simplest correct option; the `runtime` network grants
+# already account for this self-update.
+schemaVersion: "3"
+kind: mixin
+displayName: Devbox
+description: Installs Devbox on top of Nix for reproducible, per-project development environments.
+
+# MIGRATION NOTE: v1's `name:` is dropped, and v3 needs a version. The
+# installer fetches the current Devbox release, so this is the kit's own
+# release number.
+version: "1.0.0"
+
+# MIGRATION NOTE: new. v1's README said "designed to be stacked on top of the
+# nix mixin" but could not enforce it; v3 refuses to compose this kit without
+# a kit that provides `nix`.
+requires: ["nix"]
+
+capabilities:
+  # MIGRATION NOTE: v1 had one flat list; v3 is phase-scoped and an absent
+  # phase grants nothing. v1's comments already said which hosts were
+  # install-time and which were runtime. `devbox init` / `devbox install` now
+  # run as a STARTUP hook (see below), and startup hooks run in the runtime
+  # phase, so the hosts they reach are `runtime`.
+  #
+  # The Nix hosts that `devbox install` also needs (cache.nixos.org and
+  # friends) come from the nix kit: allow lists union per phase across the
+  # composed kits.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      install:
+        allow:
+          - get.jetify.com                       # fetch installer script
+          - get.jetpack.io                       # redirect target for installer script
+          - releases.jetify.com                  # download devbox binary
+          - releases.jetpack.io                  # alternate binary download domain
+      runtime:
+        allow:
+          - releases.jetify.com                  # devbox self-update on first use
+          - releases.jetpack.io                  # alternate self-update domain
+          - github.com                           # devbox self-update on first use
+          - release-assets.githubusercontent.com  # GitHub release assets for devbox version
+          - api.github.com                       # nixpkgs version lookup
+          - codeload.github.com                  # nixpkgs archive download
+          - search.devbox.sh                     # devbox search package discovery
+
+  # MIGRATION NOTE: v1's `commands.install` becomes lifecycle@1. `env:` is new:
+  # a v3 hook sees only the variables it names.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - command: "curl -fsSL https://get.jetify.com/devbox | bash -s -- -f"
+          user: "1000"
+          env: [HTTP_PROXY, HTTPS_PROXY]
+          description: Install Devbox non-interactively (-f flag skips confirmation prompt)
+      startup:
+        # MIGRATION NOTE: v1 ran `devbox init` and `devbox install` as install
+        # hooks in whatever directory the hook started in. They now run at
+        # startup in the mounted workspace: install hooks can run before the
+        # workspace is ready, and devbox.json belongs to the project. The
+        # agent may start before this finishes.
+        #
+        # `set -u` is load-bearing: if WORKSPACE_DIR were missing the hook
+        # aborts instead of initialising in `/`. USER is exported because
+        # nix.sh skips its PATH setup without it, and the hook environment
+        # does not carry it.
+        - command: |
+            set -eu
+            cd "$WORKSPACE_DIR"
+            export USER=agent
+            . /home/agent/.nix-profile/etc/profile.d/nix.sh
+            devbox init
+            devbox install
+          user: "1000"
+          env: [WORKSPACE_DIR, HTTP_PROXY, HTTPS_PROXY]
+          description: Initialize devbox.json in the workspace (idempotent) and pre-warm its packages
+
+  # MIGRATION NOTE: v1's `memory` becomes agent-context@1, body in
+  # devbox-context.md.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      contentFile: ./devbox-context.md
