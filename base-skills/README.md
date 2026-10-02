@@ -18,6 +18,7 @@ the skills are in place.
 | `uv` | Guides the agent to use uv for Python package and project management |
 | `fix-dependabot` | Resolves peer dependency conflicts on Dependabot branches |
 | `kit-author` | Guides the agent to author Docker Sandboxes kits in the **v2** `spec.yaml` format (vendored; carries a banner pointing at v3 guidance) |
+| `kit-v3-migration` | Migrates Docker Sandboxes kits from the v1/v2 `spec.yaml` format to kit spec v3 |
 | `review-claude-config` | Audits `.claude/` configuration files against best practices (Claude Code-flavored — see note below) |
 | `session-review` | End-of-session retrospective — proposes skill and settings improvements (Claude Code-flavored — see note below) |
 
