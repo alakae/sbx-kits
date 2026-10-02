@@ -6,8 +6,8 @@ description: Vendor a Claude Code skill from an external GitHub repo into base-s
 # Vendor a skill into base-skills
 
 Copies a skill's files verbatim from an external GitHub repo into this
-repo's `.claude/skills/vendor-skill/` sibling kit payload (normally
-`base-skills/files/workspace/.claude/skills/<name>/`), pinned to a specific
+repo's kit payload (normally `base-skills/files/skills/<name>/`, which the
+v3 base-skills kit copies into the workspace's `.claude/skills/`), pinned to a specific
 commit SHA, with the same `NOTICE.md` + `LICENSE-<TYPE>` attribution pattern
 used for the existing skills.
 
@@ -19,7 +19,7 @@ shipped as part of `base-skills`'s payload.
 Ask the user (or infer from what they gave you) for:
 
 - The source repo (`org/repo`) and the path within it (e.g. `skills/some-skill`).
-- The target skill directory name under `base-skills/files/workspace/.claude/skills/`
+- The target skill directory name under `base-skills/files/skills/`
   (usually the same as the source's leaf directory name, but ask if ambiguous
   or if it collides with an existing skill).
 - A specific commit SHA/tag, if the user gave one. Otherwise default to the
@@ -117,12 +117,13 @@ copyright holder/year line must match the actual source.
 
 ## Step 5 — Bookkeeping
 
-- Add `<skill-name>/` to `base-skills/files/workspace/.claude/skills/.gitignore`
-  (alphabetical, matching the existing entries).
+- Add `<skill-name>/` to `base-skills/files/skills/.gitignore`, which ships
+  into target repos alongside the skills so they stay untracked there.
+- The same `.gitignore` also hides the new directory in this repo, so stage
+  it with `git add -f base-skills/files/skills/<skill-name>`.
 - Add a row to the skills table in `base-skills/README.md` (alphabetical).
-- Do **not** also add it to this repo's root `.claude/skills/.gitignore` or
-  copy it into the root `.claude/skills/` directory. Treat it as local
-  scratch state, not something this skill manages.
+- Do **not** copy it into this repo's root `.claude/skills/` directory; the
+  only skill tracked there is this one.
 
 ## Updating an already-vendored skill to a newer SHA
 
