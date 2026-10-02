@@ -1,27 +1,152 @@
 #!/usr/bin/env bash
-# Validate and lint a single kit.
+# From docker/sbx-kits-contrib@b47f8d5 scripts/test-kit.sh (Apache-2.0), verbatim
+# except for the `--inspect` flag marked "alakae/sbx-kits addition" below; see
+# scripts/NOTICE.md.
+#
+# Conformance-check one kit against the sandbox kit specification, using the
+# spec project's own `kit-tck`.
 #
 # Usage:
-#   scripts/test-kit.sh <kit-dir>   # from repo root
-#   ../scripts/test-kit.sh          # from inside the kit's directory
-#   ../scripts/test-kit.sh my-kit   # also works
+#   scripts/test-kit.sh <kit-dir> [kit-tck flags...]   # from repo root
+#   ../scripts/test-kit.sh                            # from inside the kit's directory
+#   ../scripts/test-kit.sh my-other-kit -v            # also works
+#   scripts/test-kit.sh --ref <reference> [flags...]  # judge a PUBLISHED artifact
+#   scripts/test-kit.sh --validate-only <kit-dir>     # descriptor check only, builds nothing
+#   scripts/test-kit.sh --inspect <kit-dir> [flags...] # also `sbx kit inspect` (needs sbx)
 #
-# Runs the same checks locally and in CI (.github/workflows/kit-tests.yml):
-#   1. sbx kit validate  — spec.yaml is well-formed
-#   2. sbx kit inspect    — spec.yaml resolves to a valid manifest
-#   3. shellcheck         — any *.sh shipped by the kit
-#   4. yamllint            — spec.yaml and any *.yaml/*.yml under files/
+# WHY THIS IS A BUILD AND NOT A SOURCE CHECK
 #
-# Requires `sbx`, `shellcheck`, and `yamllint` on PATH (see README for
-# install instructions).
+# Conformance in v3 is a property of the published artifact, not of the YAML that
+# produced it. `kit-tck` judges annotations, layers, staged sources and image
+# config against the specification, with every check linked to the clause it
+# enforces — so it can only run on something built. That is the whole reason this
+# script builds: the artifact IS the thing under test.
+#
+# Two build outputs matter here and this script uses both:
+#
+#   type=oci,dest=<dir>,tar=false   an OCI layout directory on local disk. No
+#                                   registry and no push, which is what makes
+#                                   conformance runnable on a PR at all. (The
+#                                   BUILD needs no credentials either — the kit
+#                                   frontend is anonymously pullable. Installing
+#                                   kit-tck does, because the specification
+#                                   repository is not public.)
+#   type=cacheonly                  build and throw everything away. Used by
+#                                   --validate-only: the frontend validates the
+#                                   descriptor during the build and fails the
+#                                   build on a bad one, so a build that produces
+#                                   nothing is still a complete descriptor check.
+#                                   There is deliberately no separate "validate
+#                                   the YAML" step anywhere in this repo.
+#
+# Environment:
+#   KIT_TCK      path to the kit-tck binary. Default: `kit-tck` on PATH, else
+#                $(go env GOPATH)/bin/kit-tck.
+#   LAYOUT_TAG   tag the throwaway layout is built under (default: tck).
+#   KEEP_LAYOUT  set to 1 to keep the layout directory for post-mortem poking
+#                (`jq . <dir>/index.json`) instead of removing it on exit.
+#   PLATFORM     value for `docker buildx build --platform`. Default: unset, so
+#                the builder picks its native platform. Publishing builds the
+#                full platform matrix; a PR check does not need to, and cross
+#                building a recipe kit under emulation is minutes per kit.
+#   BUILDER      value for `docker buildx build --builder`.
+#
+# Exit codes: 0 conforms · non-zero build failure, non-conformance, or usage error.
 
 set -euo pipefail
 
+LAYOUT_TAG=${LAYOUT_TAG:-tck}
+
+# Locate the repo root from the script's own location so the command works
+# regardless of where it's invoked from.
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
-kit_arg=${1:-$PWD}
+# Resolve kit-tck into $kit_tck, or print the one command that installs it.
+#
+# Called lazily, only on the paths that actually need it: --validate-only is a
+# build and nothing else, and it has to keep working where kit-tck is absent —
+# which is exactly the fork-PR leg in CI, since installing kit-tck needs read
+# access to a private repository a fork's token does not have.
+#
+# Deliberately not installed on the caller's behalf: a test script has no business
+# silently putting a binary on the machine. CI installs it as its own step, so the
+# install is visible in the job log.
+kit_tck=""
+resolve_kit_tck() {
+  kit_tck=${KIT_TCK:-}
+  [ -z "$kit_tck" ] || return 0
+  if command -v kit-tck >/dev/null 2>&1; then
+    kit_tck=kit-tck
+  elif command -v go >/dev/null 2>&1 && [ -x "$(go env GOPATH)/bin/kit-tck" ]; then
+    # Where a pre-m.7 `go install` landed it, whether or not GOPATH/bin is on
+    # PATH. Kept as a fallback for machines that still have one from then; the
+    # documented install is the release binary, which lands on PATH above.
+    kit_tck="$(go env GOPATH)/bin/kit-tck"
+  else
+    cat >&2 <<'EOF'
+ERROR: kit-tck not found. Install the conformance suite by downloading the
+binary for your platform from the specification's releases:
 
+  https://github.com/docker/sandbox-kit-spec/releases
+
+It ships with the specification rather than with this repository on purpose: the
+checks and the clauses they enforce version together.
+
+Not `go install …/cmd/kit-tck@latest`: the specification's go.mod carries a
+replace directive from v3.0.0-m.7 onward, and `go install pkg@version` refuses
+any module that has one. CI installs the release binary for the same reason.
+
+To check only that a descriptor is valid, which needs no kit-tck at all:
+
+  scripts/test-kit.sh --validate-only <kit-dir>
+EOF
+    exit 1
+  fi
+}
+
+# --ref judges an artifact that is already in a registry, which is the form to
+# reach for AFTER a publish ("is what we shipped conformant?"). It needs no
+# checkout and no build, but it does need pull access: kit-tck reads the Docker
+# credential store, and this repo's kit repositories are not anonymously
+# pullable, so a `docker login` has to have happened first.
+# alakae/sbx-kits addition: --inspect also resolves the kit the way sbx will,
+# after kit-tck passes. It needs a running sbx (v0.45.0 or newer), which needs
+# /dev/kvm, so CI never passes it; it is for local runs only.
+inspect=
+if [ "${1:-}" = "--inspect" ]; then
+  inspect=1
+  shift
+fi
+
+if [ "${1:-}" = "--ref" ]; then
+  shift
+  [ $# -gt 0 ] || { echo "usage: $0 --ref <reference> [kit-tck flags...]" >&2; exit 2; }
+  ref=$1
+  shift
+  resolve_kit_tck
+  echo "==> kit-tck validate ${ref}"
+  exec "$kit_tck" validate "$ref" "$@"
+fi
+
+validate_only=
+if [ "${1:-}" = "--validate-only" ]; then
+  validate_only=1
+  shift
+fi
+
+# Resolve the kit directory. The first positional arg is the kit (relative to
+# $PWD, relative to the repo root, or absolute). If the first arg is a flag
+# (starts with `-`) or absent, default to $PWD so authors can just run
+# `../scripts/test-kit.sh -v` from inside their kit directory.
+if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+  kit_arg=$1
+  shift
+else
+  kit_arg=$PWD
+fi
+
+# Allow either an absolute path or a path relative to repo root or CWD.
 if [ -d "$kit_arg" ]; then
   kit_abs=$(cd "$kit_arg" && pwd)
 elif [ -d "$REPO_ROOT/$kit_arg" ]; then
@@ -31,31 +156,99 @@ else
   exit 1
 fi
 
-if [ ! -f "$kit_abs/spec.yaml" ] && [ ! -f "$kit_abs/spec.yml" ]; then
-  echo "no spec.yaml/spec.yml in $kit_abs — is this a kit directory?" >&2
+# A v3 kit is a directory whose descriptor is named after it — the same contract
+# scripts/discover-kits.sh uses to decide what a kit is, restated here so a typo
+# in a hand-typed argument fails with this message instead of a buildx error
+# about a missing -f file.
+kit_name=$(basename "$kit_abs")
+descriptor="$kit_abs/$kit_name.yaml"
+if [ ! -f "$descriptor" ]; then
+  echo "no $kit_name.yaml in $kit_abs — is this a v3 kit directory?" >&2
   exit 1
 fi
 
-kit_name=$(basename "$kit_abs")
-
-echo "== $kit_name: sbx kit validate =="
-sbx kit validate "$kit_abs"
-
-echo "== $kit_name: sbx kit inspect =="
-sbx kit inspect "$kit_abs" --json | jq . >/dev/null
-
-echo "== $kit_name: shellcheck =="
-shell_scripts=$(find "$kit_abs" -type f -name '*.sh')
-if [ -n "$shell_scripts" ]; then
-  # shellcheck disable=SC2086
-  shellcheck $shell_scripts
-else
-  echo "no shell scripts in $kit_name — skipping"
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker is required to build ${kit_name} for conformance." >&2
+  exit 1
 fi
 
-echo "== $kit_name: yamllint =="
-yaml_files=$(find "$kit_abs" -type f \( -name '*.yaml' -o -name '*.yml' \))
-# shellcheck disable=SC2086
-yamllint -c "$REPO_ROOT/.yamllint.yml" $yaml_files
+# The kit directory is the build context, and the descriptor is the "Dockerfile".
+# The `# syntax=docker/sandbox-kit:3` line at the top of the descriptor is what
+# routes the build to the kit frontend; buildx resolves that image anonymously,
+# so no registry credentials are involved in a conformance run.
+#
+# PLATFORM/BUILDER are interpolated with `${VAR:+...}` rather than collected into
+# an array: macOS still ships bash 3.2 as /bin/bash, where expanding an EMPTY
+# array under `set -u` is an "unbound variable" error. Neither value can contain
+# whitespace, so the unquoted expansion is safe.
+kit_build() {
+  docker buildx build "$kit_abs" \
+    -f "$descriptor" \
+    ${PLATFORM:+--platform "$PLATFORM"} \
+    ${BUILDER:+--builder "$BUILDER"} \
+    "$@"
+}
 
-echo "== $kit_name: OK =="
+if [ -n "$validate_only" ]; then
+  echo "==> validating ${kit_name}/${kit_name}.yaml (build to cacheonly)"
+  kit_build --output type=cacheonly
+  exit 0
+fi
+
+# Before the build, not after: a build can take minutes, and discovering only at
+# the end that the thing meant to judge it is missing wastes all of them.
+resolve_kit_tck
+
+# An existing empty directory is fine as a `dest=` — buildx populates it with
+# blobs/, index.json, oci-layout and its own ingest/ scratch space. Full template
+# path, not `mktemp -d -t PREFIX`: BSD/macOS mktemp treats the -t argument as a
+# prefix and appends its own randomness, leaving any XXXXXX in the middle
+# literal, while GNU mktemp substitutes it. A path template with the XXXXXX last
+# behaves identically on both.
+layout=$(mktemp -d "${TMPDIR:-/tmp}/${kit_name}-layout-XXXXXX") || {
+  echo "ERROR: could not create a temp directory for the OCI layout" >&2
+  exit 1
+}
+# A layout is the whole artifact on disk and a recipe kit's can be large, so it
+# goes away on every exit path unless the caller asked to keep it.
+cleanup() {
+  if [ -n "${KEEP_LAYOUT:-}" ]; then
+    echo "==> layout kept at ${layout}" >&2
+  else
+    rm -rf "$layout"
+  fi
+}
+trap cleanup EXIT
+
+echo "==> building ${kit_name} into an OCI layout at ${layout}"
+kit_build \
+  --output "type=oci,dest=${layout},tar=false" \
+  -t "${kit_name}-kit:${LAYOUT_TAG}"
+
+# THE TAG ARGUMENT IS THE TAG ALONE, NOT THE REFERENCE THE BUILD WAS TAGGED WITH.
+# `-t <kit>-kit:<tag>` above is a full reference, but an OCI layout records only
+# its trailing tag in index.json's org.opencontainers.image.ref.name — so the
+# reference that resolves inside the layout is `<tag>`. Passing what was handed
+# to `-t` fails with `kit-tck: resolve <kit>-kit:<tag>: not found`, which reads
+# like a broken build rather than a wrong argument. This is an easy hour to lose.
+#
+# The tag itself is a local handle and nothing more, which is why it is a fixed
+# string instead of the kit's version: `version:` is optional in v3 and is often
+# a `${{ kit.args.version }}` reference the frontend expands during the build, so
+# there is frequently no version to read out of the source at all. kit-tck takes
+# the real one from the artifact's own org.opencontainers.image.version
+# annotation.
+#
+# A WARNING IS NOT A FAILURE. On a multi-node builder, buildx merges per-node
+# results into a fresh index, which drops the kit annotations from the index
+# level; SPEC-v3 §9.3 says consumers fall back to the platform manifest, which
+# still carries them, so kit-tck reports `index-annotations` as warned and still
+# concludes "conforms" with exit 0. Do not add a grep for "warned" here.
+echo "==> kit-tck validate --layout ${layout} ${LAYOUT_TAG}"
+"$kit_tck" validate --layout "$layout" "$LAYOUT_TAG" "$@"
+
+# alakae/sbx-kits addition: see --inspect above.
+if [ -n "$inspect" ]; then
+  echo "==> sbx kit inspect ${kit_abs}"
+  sbx kit inspect "$kit_abs" </dev/null
+fi

@@ -1,0 +1,56 @@
+# Lint this repository's scripts and kits. Not part of contrib's CI; the
+# conformance check is tck.yml.
+#
+#   scripts   bash -n and shellcheck for scripts/*.sh
+#   kits      scripts/lint-kit.sh (shellcheck, yamllint) for every kit that
+#             scripts/discover-kits.sh lists; one job, since linting all nine
+#             kits takes seconds
+name: Lint
+
+on:
+  push:
+    branches: [main, v3]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Parse-check and shellcheck scripts
+        run: |
+          set -euo pipefail
+          for script in scripts/*.sh; do
+            echo "==> bash -n ${script}"
+            bash -n "$script"
+          done
+          shellcheck scripts/*.sh
+
+  kits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: false
+
+      - name: Install yamllint
+        run: |
+          uv tool install yamllint
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Captured first so a failing discover-kits.sh fails the step instead of
+      # linting nothing.
+      - name: Lint every kit
+        run: |
+          set -euo pipefail
+          kits=$(./scripts/discover-kits.sh)
+          for kit in $kits; do
+            ./scripts/lint-kit.sh "$kit"
+          done
