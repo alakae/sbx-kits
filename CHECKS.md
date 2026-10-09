@@ -69,7 +69,7 @@ positional slot instead — Docker's published
 - [ ] devbox: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix --kit ./devbox .`,
   then `devbox.json` appears in the workspace after boot, and
   `devbox run -- node --version` works after `devbox add nodejs`.
-- [ ] ruff-lint: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./ruff-lint .`,
+- [x] ruff-lint: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./ruff-lint .`,
   then `ruff --version` reports the pinned default (`0.8.4`), `ruff check`
   uses `~/.config/ruff/ruff.toml` in a repo without its own config, and
   `~/.config/ruff` is owned by `agent`.
