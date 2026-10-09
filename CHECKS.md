@@ -66,7 +66,7 @@ positional slot instead — Docker's published
 - [x] nix: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix .`, then
   `nix-shell -p hello --run hello` works, also from the agent's
   non-interactive shell.
-- [ ] devbox: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix --kit ./devbox .`,
+- [x] devbox: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix --kit ./devbox .`,
   then `devbox.json` appears in the workspace after boot, and
   `devbox run -- node --version` works after `devbox add nodejs`.
 - [x] ruff-lint: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./ruff-lint .`,
