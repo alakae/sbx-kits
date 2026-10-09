@@ -63,7 +63,7 @@ can't combine with any v3 `--kit` mixin. Use a real v3 workload in the
 positional slot instead — Docker's published
 `docker.io/docker/sbx-kit-shell:1.0.0` below:
 
-- [ ] nix: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix .`, then
+- [x] nix: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix .`, then
   `nix-shell -p hello --run hello` works, also from the agent's
   non-interactive shell.
 - [ ] devbox: `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix --kit ./devbox .`,
@@ -88,7 +88,7 @@ tool in their own Dockerfile build stage and ship only the result (a `/nix`
 store; a standalone `ruff` binary), so neither needs apt, uv, or any
 particular base at all.
 
-- [ ] `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix .` composes
+- [x] `sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit ./nix .` composes
   without a `deb/apt`-related error (confirms the `requires` entry is really
   gone, not just satisfied).
 - [ ] If a non-Debian v3 workload is available to test with, `--kit ./nix`
