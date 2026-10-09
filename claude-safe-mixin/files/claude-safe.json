@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable"
+  },
+  "remoteControlAtStartup": false
+}

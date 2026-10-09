@@ -8,10 +8,11 @@ Junie is baked into the image at build time, so the sandbox fetches nothing at
 creation and exactly one host is reachable from inside it:
 
 ```yaml
-permissions:
-  network:
-    allow:
-      - localhost:19239
+- type: com.docker.sandbox/network-policy@1
+  config:
+    runtime:
+      allow:
+        - host.docker.internal:19239
 ```
 
 No cloud model provider, no package registry, no git forge — under a
@@ -38,34 +39,22 @@ variable).
 
 Requires macOS 26+, Apple M5 or newer, 40 GB RAM (60 GB recommended).
 
-Tested against macOS 26.6.1 on Apple M5 Pro, Junie 26.8.24 (2929.5), engine
-0.2.2, sbx v0.38.0.
+The v2 kit was tested against macOS 26.6.1 on Apple M5 Pro, Junie 26.8.24
+(2929.5), engine 0.2.2, sbx v0.38.0. The v3 kit needs sbx v0.45.0 or newer.
 
 ## Bake the image
 
-The kit boots `junie-local-image:latest`, which you build yourself:
+`sbx run ./junie-local` builds the image from
+[`junie-local.dockerfile`](./junie-local.dockerfile) on your machine the first
+time, and again whenever the recipe changes. There is no separate
+`docker build` / `sbx template load` step.
 
-```console
-docker build -t junie-local-image:latest .
-```
-
-`sbx run` reads from `sbx`'s own image store, not Docker's — load it before
-running the kit:
-
-```console
-docker save junie-local-image:latest -o junie-local-image.tar
-sbx template load junie-local-image.tar
-docker image rm junie-local-image:latest
-rm junie-local-image.tar
-```
-
-`docker image rm` / `rm` are optional cleanup; redo the whole cycle on every rebuild.
-
-This repo redistributes nothing — the Dockerfile only fetches Junie from
+This repo redistributes nothing — the recipe only fetches Junie from
 JetBrains' own installer at build time, on your machine. The **image you
 build does** contain JetBrains' proprietary binary, so **never push it to a
 registry**; use is subject to the JetBrains AI Service Terms of Service.
-Rebuild to update; the shim's self-updater is disabled inside the sandbox.
+The shim's self-updater is disabled inside the sandbox; to update Junie,
+rebuild without the cache (`sbx kit builder rm` clears the build cache).
 
 ## Run
 
@@ -80,7 +69,7 @@ Enter secret: <paste the value of .api_key from ~/.local/share/junie-local/serve
 Then start the sandbox:
 
 ```console
-sbx run --kit ./junie-local junie-local ~/my-project
+sbx run ./junie-local ~/my-project
 ```
 
 The token stays on the host. The kit declares it as a proxy-managed credential,
@@ -89,11 +78,17 @@ and the container never sees the value.
 
 ## How it reaches the host
 
-The engine binds `127.0.0.1:19239` and stays there. The sandbox proxy translates
-`host.docker.internal` to `localhost` before forwarding, so:
+The engine binds `127.0.0.1:19239` and stays there. The sandbox proxy forwards
+`host.docker.internal` to the host's `localhost`, so:
 
 - the model profile points at `http://host.docker.internal:19239/v1/chat/completions`
-- the allow-list entry is `localhost:19239`, the translated address
+- the allow-list entry and the credential's inject domain are
+  `host.docker.internal:19239`
+
+The v2 kit allowed `localhost:19239`, the translated address. The v3 kit uses
+the `host.docker.internal` form, following docker/sbx-kits-contrib's v3 kits;
+this has not been confirmed against a running engine yet. If requests are
+blocked, `sbx policy log <sandbox>` shows which address the proxy matched.
 
 Nothing on the host needs reconfiguring, and the engine is never exposed beyond
 loopback.
@@ -101,7 +96,7 @@ loopback.
 ## Verify
 
 ```console
-$ sbx kit validate ./junie-local
+$ docker buildx build ./junie-local -f ./junie-local/junie-local.yaml --output type=cacheonly
 $ sbx kit inspect  ./junie-local
 ```
 

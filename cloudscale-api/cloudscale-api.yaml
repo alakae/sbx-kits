@@ -1,0 +1,54 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v2 spec.yaml. Every v2 stanza lands somewhere
+# deliberate; the deltas are marked MIGRATION NOTE inline.
+#
+# A declaration-only mixin: it contributes egress and a credential and ships no
+# content, so there is no cloudscale-api.dockerfile beside it. v3 allows that
+# for a mixin.
+schemaVersion: "3"
+kind: mixin
+displayName: Cloudscale API
+description: Grants sandbox access to api.cloudscale.ch with credential injection
+
+# MIGRATION NOTE: v2's `name:` is dropped; a v3 kit's identity is the reference
+# it is consumed by. v2 declared no version, and v3 needs one. Nothing is
+# installed, so this is the kit's own release number. Bump it when the
+# declarations change.
+version: "1.0.0"
+
+capabilities:
+  # MIGRATION NOTE: v2's flat `permissions.network.allow` becomes a
+  # phase-scoped list, and an absent phase grants nothing. The kit has no hooks,
+  # so nothing runs at install; the host is reached only by the agent at steady
+  # state, so it is `runtime` only. Written portless, which matches any port.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - api.cloudscale.ch
+
+  # MIGRATION NOTE: `optional: true` is how v2's absence of `required` is
+  # spelled in v3, where an entry is required unless it opts out. A sandbox
+  # with no cloudscale secret bound is a normal configuration (the agent just
+  # cannot reach the API authenticated), so failing resolution would refuse
+  # creates that v2 accepted.
+  #
+  # The service name is load-bearing: it is the key the host binds the secret
+  # under (`sbx secret set cloudscale`). Renaming it detaches the binding.
+  - type: com.docker.sandbox/credential@1
+    optional: true
+    description: cloudscale API token
+    config:
+      service: cloudscale
+      phase: runtime
+      apiKey:
+        name: CLOUDSCALE_API_TOKEN
+        # MIGRATION NOTE: v2 set CLOUDSCALE_API_TOKEN to the `proxy-managed`
+        # sentinel inside the sandbox implicitly; v3 asks for it explicitly.
+        # Tools that refuse to start without the variable keep working, and
+        # the real value still never enters the container.
+        proxyManaged: true
+        # The inject domain is in this phase's allow list above, which v3
+        # validation requires as an exact host match.
+        inject:
+          - {domain: api.cloudscale.ch, header: Authorization, format: "Bearer %s"}

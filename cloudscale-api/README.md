@@ -18,7 +18,7 @@ Enter secret: <<your-token-here>>
 ```
 
 ```console
-$ sbx run shell \
+$ sbx run docker.io/docker/sbx-kit-shell:1.0.0 \
     --kit "git+https://github.com/alakae/sbx-kits.git#dir=cloudscale-api" \
     ~/my-project
 ```
@@ -33,7 +33,7 @@ $ sbx run shell \
 ## Verify
 
 ```console
-$ sbx kit validate ./cloudscale-api
+$ docker buildx build ./cloudscale-api -f ./cloudscale-api/cloudscale-api.yaml --output type=cacheonly
 $ sbx kit inspect  ./cloudscale-api
 ```
 

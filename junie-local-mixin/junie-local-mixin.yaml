@@ -1,0 +1,71 @@
+# syntax=docker/sandbox-kit:3
+# junie-local as a MIXIN: the same declarations as the junie-local workload
+# beside it, minus what only the kit that owns the environment can carry:
+#
+#   * no ENTRYPOINT. The base workload's launch command stays; run
+#     `junie-local` (Junie with the local model) or `junie` from the shell.
+#   * no sbx@1 (a mixin's image config is not the composed image's).
+#   * no agent-context `filename:`, which names a profile the workload owns.
+schemaVersion: "3"
+kind: mixin
+displayName: Junie Local (MLX) (mixin)
+description: >-
+  Junie wired to the junie-mlx-vlm engine running on the host, as a mixin: the
+  Junie CLI and a `junie-local` command in an overlay, with the engine's egress
+  and bearer token. Layer it onto a shell base and run `junie-local`.
+
+# The kit's own release number; Junie itself is installed at its current
+# stable release when the overlay is built.
+version: "1.0.0"
+
+# The same name as the workload, so composing the two is refused rather than
+# installing Junie twice.
+provides: ["junie-local"]
+
+capabilities:
+  # Same as the workload: the hostname the model profile uses, with the port,
+  # so the grant is one engine and not every port on the host. Not yet
+  # verified against a running engine; `sbx policy log` shows what matched.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - host.docker.internal:19239
+
+  # Required, as in the workload: without the token every request fails.
+  - type: com.docker.sandbox/credential@1
+    description: Bearer token from ~/.local/share/junie-local/server-config.json
+    config:
+      service: junie-local
+      phase: runtime
+      apiKey:
+        name: JUNIE_LOCAL_API_KEY
+        proxyManaged: true
+        inject:
+          - {domain: "host.docker.internal:19239", header: Authorization, format: "Bearer %s"}
+
+  # The model profile, identical to the workload's. Keep the two in step.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      files:
+        - path: /home/agent/.junie/models/local-qwen3.6-27b-4bit.json
+          mode: "0600"
+          description: Junie custom-model profile pointing at the host engine
+          content: |
+            {
+              "displayName": "Qwen 3.6",
+              "providerName": "Local",
+              "id": "Qwen3.6-27B-MLX-4bit",
+              "baseUrl": "http://host.docker.internal:19239/v1/chat/completions",
+              "apiType": "OpenAICompletion",
+              "apiKey": "proxy-managed",
+              "temperature": 0.6,
+              "maxContextLength": 150000,
+              "extraBody": {
+                "enable_thinking": false
+              }
+            }
+
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      contentFile: ./junie-local-mixin-context.md

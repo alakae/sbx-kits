@@ -6,10 +6,13 @@ A mixin that installs [Nix](https://nixos.org/) in single-user mode, making
 ## Usage
 
 ```console
-$ sbx run shell --kit "git+https://github.com/alakae/sbx-kits.git#dir=nix"
+$ sbx run docker.io/docker/sbx-kit-shell:1.0.0 --kit "git+https://github.com/alakae/sbx-kits.git#dir=nix"
 ```
 
-Stack with other mixins using multiple `--kit` flags.
+Stack with other mixins using multiple `--kit` flags. Nix is built once, at
+publish time, in `nix.dockerfile`'s own build stage — the composed workload
+doesn't need apt/deb or any particular base at all, only `/nix` and a few
+files under `/home/agent` copied in from that stage.
 
 ## What it adds
 
@@ -18,8 +21,9 @@ Stack with other mixins using multiple `--kit` flags.
   `BASH_ENV` in every non-interactive shell (including the agent's Bash tool)
 - `nixpkgs` channel available for package resolution
 - Binary cache (`cache.nixos.org`) allowed through the network policy
-- `USER=agent` set at runtime — required because `nix.sh` silently skips PATH
-  exports if `$USER` is unset, and sbx does not set it automatically
+- `export USER=agent` written to `/etc/sandbox-persistent.sh` — required
+  because `nix.sh` silently skips PATH exports if `$USER` is unset, and sbx
+  does not set it automatically
 
 Note: the Nix installer only writes its PATH setup to `~/.profile` or
 `~/.bash_profile` if one already exists. Neither exists in the agent home, so
@@ -29,7 +33,7 @@ instead of relying on the installer's shell-detection logic.
 ## Verify
 
 ```console
-$ sbx kit validate ./nix
+$ docker buildx build ./nix -f ./nix/nix.yaml --output type=cacheonly
 $ sbx kit inspect  ./nix
 ```
 

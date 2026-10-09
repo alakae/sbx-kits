@@ -1,0 +1,31 @@
+# syntax=docker/sandbox-kit:3
+# claude-safe's approval mode as a MIXIN: the managed policy only, layered onto
+# any workload that already carries Claude Code. Unlike the claude-safe
+# workload it does not own the launch command, so the base keeps its own
+# entrypoint; the policy still applies because Claude Code's managed settings
+# outrank command-line flags. On contrib's `claude` workload, whose entrypoint
+# is `claude --dangerously-skip-permissions`, the flag is then refused and the
+# session runs in the default (prompting) mode.
+schemaVersion: "3"
+kind: mixin
+displayName: Claude Code approval mode (mixin)
+description: >-
+  Disables Claude Code's bypass-permissions mode, auto mode and Remote Control
+  at startup through a managed-settings policy, so every tool call requires
+  explicit approval. Layer it onto any workload that carries Claude Code.
+
+# The kit's own release number; bump it when the policy changes.
+version: "1.0.0"
+
+# The policy is only meaningful where Claude Code runs. Any kit providing
+# `claude` satisfies this: this repo's claude-safe workload, or contrib's
+# claude workload and claude-mixin.
+requires: ["claude"]
+
+# No network, credential or hooks: the overlay is the whole kit.
+capabilities:
+  # `filename:` is workload-only; a mixin contributes a body to the base's
+  # context file.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      contentFile: ./claude-safe-mixin-context.md

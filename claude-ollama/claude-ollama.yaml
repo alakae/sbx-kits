@@ -1,0 +1,196 @@
+# syntax=docker/sandbox-kit:3
+# Migration of this kit's v2 spec.yaml. Deltas are marked MIGRATION NOTE inline.
+schemaVersion: "3"
+kind: workload
+displayName: Claude Code (Ollama)
+description: Claude Code wired to Ollama Anthropic-compatible API, with configurable model.
+
+# MIGRATION NOTE: v2 declared no `version:`. v3 needs one, and rather than
+# invent a release number for this descriptor, the egress rule and the wrapper,
+# it is resolved from the `version` arg below — SPEC-v3 §4 admits a build-phase
+# arg reference here and expands it at publish. So the kit is released as the
+# Claude Code behind the wrapper, which is the same value the provide carries
+# and, for the reasons the arg's own comment sets out, the only version
+# `claude-ollama` can honestly state. A literal here would have been a second
+# number competing with that one — and, as the fallback an unversioned provide
+# takes its version from, the one that used to win.
+version: "${{ kit.args.version }}"
+
+# The Claude Code release this kit installs, and the version it publishes
+# `claude-ollama` at.
+#
+# WHY A CLAUDE VERSION IS THE RIGHT VERSION FOR `claude-ollama`. This kit's own
+# payload is one egress rule, one settings seed and a wrapper script whose last
+# line is `exec claude "$@"`. Everything a caller can observe about
+# `claude-ollama` — its flags, its behaviour, what `claude-ollama --version`
+# prints — is Claude Code's, routed at a local endpoint. So the honest version
+# for the name is the version of the binary behind it.
+#
+# WHY THE RECIPE HAD TO GROW AN INSTALL TO SAY THAT. The base template already
+# carries a `claude`, but a floating one: `docker/sandbox-templates:claude-code-docker`
+# had 2.1.246 when this was pinned, and it is rebuilt nightly. Publishing a
+# version while the content came from a tag that moves underneath it would be
+# exactly the failure this pin exists to prevent. So the recipe re-installs
+# Claude Code at this version on top of the template — the base image itself is
+# unchanged, and the sibling `claude` kit's own installer does the work.
+#
+# HOW THE DEFAULT WAS DETERMINED, and how to bump it: Anthropic's installer
+# resolves an omitted target to the `stable` channel, published as a bare
+# version string at `https://downloads.claude.ai/claude-code-releases/stable` —
+# 2.1.267 when this was pinned. Re-read that URL to bump. This is deliberately
+# the same value the `claude` and `claude-mixin` kits in docker/sbx-kits-contrib
+# (and this repo's `claude-safe`) pin: they ship the same binary, and a sandbox should not get a different Claude
+# Code because it chose the Ollama wiring.
+args:
+  version:
+    # Channel names (`stable`, `latest`) are rejected even though the installer
+    # accepts them: the value is expanded into `provides` below, and
+    # `claude-ollama@stable` is not a version. The prerelease tail is
+    # constrained to what SPEC-v3 §5.2 admits in a version segment.
+    default: "2.1.267"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
+    description: Claude Code release to install behind the Ollama wrapper
+    buildArg: CLAUDE_CODE_VERSION
+
+# MIGRATION NOTE: the name is `claude-ollama`, not `claude`, and that is
+# load-bearing rather than cosmetic. In v2 a mixin's `requires.agent: claude`
+# matched a sandbox kit's `name:`, so the claude mixins in docker/sbx-kits-contrib never
+# composed onto this kit — its agent name was `claude-ollama`. Providing
+# `claude` here would silently make all of them eligible, several of which
+# assume a reachable Anthropic API that this kit deliberately removes. Pinning
+# the version does not change that: the name stays `claude-ollama`, so a
+# `requires: ["claude"]` still does not resolve against this kit.
+provides: ["claude-ollama@${{ kit.args.version }}"]
+
+capabilities:
+  # A v2 `kind: sandbox` kit is an sbx-launched agent: the host launches the
+  # agent rather than running the image's entrypoint as PID 1, and honors the
+  # identity the image config declares.
+  - type: com.docker.sandbox/sbx@1
+
+  # MIGRATION NOTE: v2's flat list becomes a phase-scoped one. Everything this
+  # kit reaches, it reaches in steady state — the wrapper points Claude Code at
+  # the local endpoint and the install hook opens no socket — so there is only a
+  # `runtime` block, and no `install` block, which grants nothing.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          # The wrapper points Claude Code at http://host.docker.internal:11434;
+          # that hostname, not localhost, is what egress filtering sees.
+          #
+          # MIGRATION NOTE: the port stays, against this repo's otherwise
+          # portless house style. That style exists for public hosts where
+          # `:443` versus `:80` is noise (and where pinning breaks an apt mirror
+          # that switches scheme); here the port is the whole point of the
+          # entry. `host.docker.internal` is the host itself, so dropping the
+          # suffix would widen the grant from one local model server to every
+          # port the host has open.
+          - host.docker.internal:11434
+
+  # MIGRATION NOTE: this kit declares NO credential, and that is deliberate
+  # rather than an omission in the migration. Ollama is a local model: the
+  # wrapper unsets ANTHROPIC_API_KEY and points Claude Code at
+  # host.docker.internal, so there is no service to authenticate to and no
+  # SBX_CRED_ANTHROPIC_MODE for the engine to surface.
+
+  # From testdata/tck.yaml's recorded `promptArgs: ["-p"]` — the invocation this
+  # kit's e2e actually exercised. The tail appends to the image entrypoint, so
+  # the harness runs `claude-ollama -p <prompt>`, and the wrapper execs
+  # `claude -p <prompt>`. Only `prompt` is declared: the other verbs were never
+  # recorded, and an absent verb means "unsupported" rather than an invitation to
+  # invent flags.
+  - type: com.docker.sandbox/agent-sessions@1
+    description: Run one prompt non-interactively against the local model
+    config:
+      prompt: ["-p", "{{.Prompt}}"]
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        # Seed ~/.claude/settings.json early (install runs synchronously before
+        # the agent launches). This kit declares no credential service, so
+        # SBX_CRED_ANTHROPIC_MODE is never set in the container env and the
+        # branch always falls through to the unset → "none" path: settings.json
+        # is written WITHOUT apiKeyHelper, which is correct since there is no
+        # proxy-managed cloud credential. The name is still declared in `env:`
+        # below, because the hook reads it and a v3 hook sees only what it
+        # declares — declaring it is what keeps the branch meaningful if a
+        # future revision of this kit ever does bind a credential.
+        #
+        # The test -f guard makes re-runs a no-op and never clobbers a
+        # user-edited file. settings.json content SYNCed with the claude kit
+        # (none path). root-write + chown because contrib base-image ownership
+        # of /home/agent/.claude is not guaranteed agent-owned.
+        - command: |
+            set -e
+            mkdir -p /home/agent/.claude
+            if [ ! -f /home/agent/.claude/settings.json ]; then
+              HELPER=''
+              if [ "${SBX_CRED_ANTHROPIC_MODE:-none}" != none ]; then
+                HELPER='  "apiKeyHelper": "echo proxy-managed",
+            '
+              fi
+              printf '%s' "{
+              \"themeId\": 1,
+              \"alwaysThinkingEnabled\": true,
+            ${HELPER}  \"defaultMode\": \"bypassPermissions\",
+              \"bypassPermissionsModeAccepted\": true
+            }
+            " > /home/agent/.claude/settings.json
+            fi
+            # Enumerated, not recursive: ~/.claude holds runtime-managed content
+            # this kit doesn't own, so `chown -R` on the parent would take
+            # ownership of paths outside the kit's control.
+            chown agent:agent /home/agent/.claude /home/agent/.claude/settings.json
+          user: root
+          env: [SBX_CRED_ANTHROPIC_MODE]
+          description: Seed Claude settings.json (none path; no credential service)
+      files:
+        # ~/.claude.json carries only the credential-independent bypass flags —
+        # a static init file, so `overwrite: false` (v2's `onlyIfMissing: true`)
+        # is the right idempotency and no hook is needed. Content SYNCed with the
+        # claude kit.
+        - path: /home/agent/.claude.json
+          content: |
+            {
+              "bypassPermissionsModeAccepted": true,
+              "hasCompletedOnboarding": true,
+              "projects": {
+                  "/": {
+                  "hasTrustDialogAccepted": true
+                }
+              }
+            }
+          overwrite: false
+          description: Claude bypass flags (mode-independent)
+        # The kit's entrypoint. It stays a lifecycle file rather than moving into
+        # the recipe so the workload and the claude-ollama-mixin sibling carry
+        # one copy of it between them; the runtime writes files before the
+        # entrypoint first runs, so the ordering holds. The `$CLAUDE_OLLAMA_MODEL`
+        # and `"$@"` references are shell expansions at run time and pass
+        # through untouched — only kit-arg references are substituted into file
+        # content, and the kit's one arg (the pinned Claude Code version) is
+        # not referenced here.
+        - path: /home/agent/.local/bin/claude-ollama
+          content: |
+            #!/usr/bin/env bash
+            set -euo pipefail
+
+            export ANTHROPIC_AUTH_TOKEN="ollama"
+            unset ANTHROPIC_API_KEY
+            export ANTHROPIC_BASE_URL="http://host.docker.internal:11434"
+
+            export ANTHROPIC_DEFAULT_OPUS_MODEL="$CLAUDE_OLLAMA_MODEL"
+            export ANTHROPIC_DEFAULT_SONNET_MODEL="$CLAUDE_OLLAMA_MODEL"
+            export ANTHROPIC_DEFAULT_HAIKU_MODEL="$CLAUDE_OLLAMA_MODEL"
+            export CLAUDE_CODE_SUBAGENT_MODEL="$CLAUDE_OLLAMA_MODEL"
+
+            exec claude "$@"
+          mode: "0755"
+          description: Wrapper script that routes Claude Code to the local Ollama instance
+
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      filename: CLAUDE.md
+      contentFile: ./claude-ollama-context.md
