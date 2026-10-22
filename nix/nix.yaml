@@ -1,0 +1,72 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+displayName: Nix package manager (mixin)
+description: >-
+  Nix in single-user mode, pinned by nixpkgs commit, as a self-contained
+  overlay. Layer it onto a shell workload and run nix-shell / nix shell.
+sourceUrl: https://github.com/NixOS/nix
+licenses: [LGPL-2.1-or-later]
+
+kind: mixin
+
+# A mixin: no ENTRYPOINT reaches the sandbox — the workload's launch
+# command stays and the agent runs nix from its shell. The recipe's own
+# ENTRYPOINT only makes `docker run` on the overlay a smoke test.
+#
+# Standalone: the overlay ships a registered, agent-owned store and owns
+# /etc/nix/nix.conf, so it needs no setup hook. The devbox mixin carries
+# its own Nix and declares `conflicts: ["nix"]`; use one or the other.
+
+# The nixpkgs commit in nix.dockerfile is the version authority: Nix's
+# version and the nixpkgs the agent resolves both follow from it, a bump
+# is editing the pin, and this kit has no version arg. Read the value from
+# the overlay's `docker run`, not from memory.
+provides: ["nix@2.34.8"]
+
+capabilities:
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      # MIGRATION NOTE: v1's install-time hosts are gone with its
+      # install commands, because Nix now arrives as a layer built at
+      # publish: ports.ubuntu.com and download.docker.com (apt-get for
+      # xz-utils), nixos.org (installer script), releases.nixos.org
+      # (release tarballs).
+      # MIGRATION NOTE: channels.nixos.org (runtime channel updates) is
+      # dropped. `nixpkgs` now resolves through /etc/nix/registry.json
+      # to the pinned source tree shipped in the overlay, so there is no
+      # channel to update. An agent fetching other flakes (github:…)
+      # needs those hosts granted by the user.
+      runtime:
+        allow:
+          # Binary cache for pre-built packages; Nix only reads from it.
+          - hosts: [cache.nixos.org]
+            methods: [GET, HEAD]
+
+  # REVIEW NOTE: agent-context@1 with an inline body, not @2. sbx v0.49.1
+  # rejects @2 ("unsupported capability type"), and the published
+  # workloads (docker.io/docker/sbx-kit-shell, sbx-kit-claude) declare @1,
+  # which the spec refuses to compose with @2. Inline `content:` still
+  # means no separate context file to ship.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      content: |
+        # Nix
+
+        Nix is installed in single-user mode (no daemon); you own the store under
+        `/nix`. `nixpkgs` is pinned and available offline, so package names
+        resolve to the versions of that pin.
+
+        - Run a command with a package: `nix-shell -p <package> --run '<command>'`
+          or `nix shell nixpkgs#<package> --command <command>`
+        - Never run `nix-shell` without `--run`, or `nix shell` without
+          `--command`: they open an interactive subshell that hangs in a
+          non-interactive context.
+        - Packages download from cache.nixos.org. Other flakes (`github:...`)
+          need their hosts allowed by the user first.
+        - Free space with `nix-collect-garbage`; Nix and the pinned nixpkgs are
+          protected and stay.
+
+# MIGRATION NOTE: v1 set USER=agent because the installer's nix.sh skipped
+# its PATH exports without it, and sourced nix.sh from
+# /etc/sandbox-persistent.sh. Neither applies: the Nix commands are linked
+# into /usr/local/bin and need no profile script or USER.

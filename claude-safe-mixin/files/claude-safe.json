@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "defaultMode": "default"
+  },
+  "useAutoModeDuringPlan": false,
+  "allowManagedPermissionRulesOnly": true,
+  "remoteControlAtStartup": false
+}

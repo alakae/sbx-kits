@@ -1,0 +1,107 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+displayName: Devbox (mixin)
+description: >-
+  Devbox with its own Nix, pinned by nixpkgs commit, as a self-contained
+  overlay. Layer it onto a shell workload and run devbox.
+sourceUrl: https://github.com/jetify-com/devbox
+licenses: [Apache-2.0]
+
+kind: mixin
+
+# A mixin: no ENTRYPOINT reaches the sandbox — the workload's launch
+# command stays and the agent runs devbox from its shell.
+#
+# MIGRATION NOTE: the v1 kit was "designed to be stacked on top of the nix
+# mixin kit". This one needs no other kit: devbox cannot work without Nix,
+# so the overlay carries its own, as a registered, agent-owned store.
+
+# The nixpkgs commit in devbox.dockerfile is the version authority; this
+# kit has no version arg.
+provides: ["devbox@0.17.5"]
+
+# Both this kit and the nix mixin own /nix and /etc/nix/nix.conf, and a
+# layer replaces rather than merges them: stacked, the upper overlay's Nix
+# database would hide the other's registrations, and the garbage
+# collector would then delete the lower kit's files. Refuse the
+# composition up front instead of breaking at runtime. The Nix inside is
+# an implementation detail, so it is not in `provides`.
+conflicts: ["nix"]
+
+capabilities:
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      # The pre-warm hook below resolves and downloads packages exactly as
+      # the agent later does, so both phases grant the same hosts.
+      install:
+        allow:
+          - hosts: [cache.nixos.org]
+            methods: [GET, HEAD]
+          - hosts: [api.github.com, github.com, codeload.github.com]
+            methods: [GET, HEAD]
+          - hosts: [search.devbox.sh]
+            methods: [GET, HEAD]
+      # MIGRATION NOTE: get.jetify.com, get.jetpack.io,
+      # releases.jetify.com and releases.jetpack.io served v1's curl
+      # installer and binary download; devbox now arrives as a layer
+      # built at publish.
+      # MIGRATION NOTE: release-assets.githubusercontent.com served the
+      # self-update of the installer's launcher script. The nixpkgs
+      # build is the devbox binary itself, with no launcher to update,
+      # so the grant is dropped.
+      runtime:
+        allow:
+          # Binary cache for pre-built packages.
+          - hosts: [cache.nixos.org]
+            methods: [GET, HEAD]
+          # nixpkgs version lookup (api.github.com) and the nixpkgs archive
+          # download it redirects to (github.com → codeload.github.com).
+          # Reads only, so the bound is the verb.
+          - hosts: [api.github.com, github.com, codeload.github.com]
+            methods: [GET, HEAD]
+          # `devbox add` / `devbox search` package discovery.
+          - hosts: [search.devbox.sh]
+            methods: [GET, HEAD]
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        # Reads the workspace, a create-time value, so it stays a hook.
+        # The proxy variables are declared because nix, which devbox runs,
+        # fetches through the sandbox's forced proxy.
+        - command:
+            - sh
+            - -c
+            - >-
+              cd "$WORKSPACE_DIR" &&
+              if [ -f devbox.json ]; then devbox install; fi
+          user: "1000"
+          env: [WORKSPACE_DIR, HTTP_PROXY, HTTPS_PROXY, NO_PROXY]
+          description: Pre-warm the packages of an existing devbox.json
+          # MIGRATION NOTE: v1 also ran `devbox init`, which would write a
+          # devbox.json into the user's workspace on every create. Dropped:
+          # the agent runs `devbox init` when a project wants one.
+
+  # REVIEW NOTE: agent-context@1 with an inline body, not @2. sbx v0.49.1
+  # rejects @2 ("unsupported capability type"), and the published
+  # workloads (docker.io/docker/sbx-kit-shell, sbx-kit-claude) declare @1,
+  # which the spec refuses to compose with @2. Inline `content:` still
+  # means no separate context file to ship.
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      content: |
+        # Devbox
+
+        Devbox is installed and manages reproducible per-project package
+        environments through Nix (single-user, no daemon; you own `/nix`).
+
+        - Create a project config: `devbox init` (writes `devbox.json`)
+        - Add a package: `devbox add <package>`, then `devbox install`
+        - Run a command in the environment: `devbox run -- <command> [args]`.
+          The `--` is required so arguments are not read as devbox flags.
+        - Prefer `devbox run -- <cmd>` over a bare `<cmd>` for packages managed
+          by Devbox: PATH is not changed globally.
+        - Never run `devbox shell`: it opens an interactive subshell that hangs
+          in a non-interactive context.
+        - `nix` is on PATH because devbox drives it. Manage packages through
+          devbox rather than `nix-shell`, which has no `nixpkgs` configured here.

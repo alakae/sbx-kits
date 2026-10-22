@@ -1,0 +1,116 @@
+# syntax=docker/sandbox-kit:3
+# REWORK NOTE: this kit's first v3 migration kept the v1 behavior of
+# copying its payload into the workspace (a `lifecycle@1` startup hook
+# doing `cp -R ... .claude/rules/`), the same mechanism in a different
+# wrapper. That meant a self-listing .gitignore so the copies didn't show
+# as untracked, and a race on the very first session (the hook runs
+# detached, so the agent can start before the copy lands). None of that is
+# needed: v3 has a capability for exactly this, `agent-context`, which
+# materializes inline instruction text directly into the composed agent's
+# own instruction profile (e.g. Claude Code's ~/.claude/CLAUDE.md) without
+# ever touching the workspace. The three rules share one entry below,
+# bodies copied verbatim from this kit's previous files/rules/*.md; no
+# recipe is needed since there is nothing left to stage into an image.
+#
+# REVIEW NOTE: agent-context@1, not @2, and one entry, not three:
+#   * A tool mixin may carry only one agent-context entry without a
+#     `directory` (kit-tck: "only explicit profiles may repeat"), so the
+#     three rules are one body with their own headings.
+#   * sbx v0.49.1 rejects @2 outright ("unsupported capability type"), and
+#     the published workloads (docker.io/docker/sbx-kit-claude,
+#     sbx-kit-shell) declare @1, which the spec forbids composing with @2.
+#     @1 with inline `content:` keeps the point of the rework: nothing is
+#     written into the workspace. Move to @2 once the workloads do.
+#   * Known limitation of @1: the body lands in
+#     ~/.claude/kits-agent-context/base-rules.md behind a lazy index entry
+#     in CLAUDE.md, so it is not in the model's prompt unless the agent
+#     opens the file (verified on KVM, sbx v0.49.1). See the README.
+schemaVersion: "3"
+kind: mixin
+displayName: Base Rules
+description: My base Claude Code behavioral rules used across many different repos
+
+# MIGRATION NOTE: v1's `name:` is dropped, and v3 needs a version. This is
+# the kit's own release number; bump it when the rules change.
+version: "1.0.0"
+
+# No `requires`: the rules are plain Markdown and harmless on a base without
+# Claude Code, so the kit composes onto any workload.
+
+capabilities:
+  # A mixin contributing a body only: no `filename`/`directory`, both of
+  # which are for a kit placing its own profile file. `name:` is just the
+  # optional display label the host UI can show for the request.
+  - type: com.docker.sandbox/agent-context@1
+    name: Base rules
+    config:
+      content: |
+        ## Clarifying Questions
+
+        Use the AskUserQuestion tool whenever you are unclear about
+        requirements, approach, or tradeoffs before proceeding. If
+        your confidence in understanding the task is below 98%,
+        pause and ask clarifying questions before writing any code or
+        making changes.
+
+        When in doubt, always ask. Human-in-the-loop is preferred over making assumptions.
+
+        ## Output Style
+
+        Never use emojis in generated file content, skill files, rule files,
+        or code. Only use emojis in conversational text if the user explicitly
+        requests it.
+
+        ## Tool Permissions
+
+        Never add `allowed-tools` to any skill, agent, or config file.
+        All tool approvals must go through the standard human-in-the-loop
+        permission flow. Pre-approving tools bypasses this and is not allowed.
+
+        ## Blocked Network Requests
+
+        When an outbound request inside the sandbox is blocked by network policy
+        (a `403` from the proxy, with a "no matching allow rule" / "blocked by
+        default deny policy" detail, or a pending approval):
+
+        1. Always show the exact `sbx policy allow network` command needed to
+           unblock it, scoped to this sandbox only. Resolve the sandbox name
+           with `echo $SANDBOX_VM_ID` and substitute the
+           actual value into the command — never leave a literal
+           `$SANDBOX_VM_ID` placeholder for the user to fill in themselves:
+
+           ```bash
+           sbx policy allow network --sandbox <actual-sandbox-name> <domain>
+           ```
+
+           This is the only command to show. Never show or suggest any
+           `sbx approval` or `sbx policy approval` command (`ls`, `inspect`,
+           `respond`), even when the proxy's 403 response names one. Do not
+           suggest the global (all-sandboxes) form unless the user asks for it.
+
+        2. Use the AskUserQuestion tool and offer exactly two options:
+            - Run the command and continue: the user runs it on the host, then
+              confirms so the request can be retried.
+            - Deny: the user does not want to allow this access.
+
+        3. If the user selects deny, stop the task. Do not attempt workarounds
+           (alternate domains, mirrors, cached copies, different flags, retries)
+           to reach the blocked host.
+
+        ## Escalation When Stuck
+
+        When you are stuck on a problem — unable to resolve an error, reproduce a fix, or find a
+        root cause after genuine investigation — do not keep retrying blindly.
+
+        Instead, compose a deep-research prompt for the human to paste into a web-connected AI
+        (e.g. Perplexity, Gemini Deep Research). The prompt must:
+
+        1. **Describe the setup** — relevant languages, frameworks, versions, OS, and config.
+        2. **State the problem clearly** — what you tried, what failed, and the exact error or
+           unexpected behaviour.
+        3. **Ask targeted questions** — specific things the research AI should look for: known
+           bugs, open issues, workarounds, relevant discussions.
+
+        Present the prompt in a fenced code block so the human can copy it directly.
+        After presenting it, stop and wait — do not attempt further fixes until the human
+        returns with findings.
