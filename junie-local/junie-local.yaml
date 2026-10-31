@@ -8,11 +8,10 @@ description: >-
   nothing is fetched at sandbox creation.
 
 # Junie is pinned. The installer takes JUNIE_VERSION (Junie's build number, the
-# one in parentheses in `junie --version`), so one arg drives the install, the
-# provide, the descriptor's version and the publish tag, and the recipe fails
-# the build if the installed binary is anything else. Bump it from
+# one in parentheses in `junie --version`), so one arg drives both the install
+# and the provide, and the recipe fails the build if the installed binary is
+# anything else. Bump it from
 # https://raw.githubusercontent.com/jetbrains-junie/junie/main/update-info.jsonl
-version: "${{ kit.args.version }}"
 
 args:
   version:

@@ -4,16 +4,7 @@ kind: workload
 displayName: Claude Code (Ollama)
 description: Claude Code wired to Ollama Anthropic-compatible API, with configurable model.
 
-# Resolved from the `version` arg below rather than a release number of its
-# own — SPEC-v3 §4 admits a build-phase arg reference here and expands it at
-# publish. So the kit is released as the Claude Code behind the wrapper, which
-# is the same value the provides carry and, for the reasons the arg's own
-# comment sets out, the only version `claude-ollama` can honestly state. A
-# literal here would be a second number competing with that one.
-version: "${{ kit.args.version }}"
-
-# The Claude Code release this kit installs, and the version it publishes
-# `claude-ollama` at.
+# The Claude Code release this kit installs.
 #
 # WHY A CLAUDE VERSION IS THE RIGHT VERSION FOR `claude-ollama`. This kit's own
 # payload is one egress rule, one settings seed and a wrapper script whose last

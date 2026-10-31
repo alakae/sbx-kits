@@ -23,9 +23,6 @@ kind: mixin
 displayName: Base Rules
 description: My base Claude Code behavioral rules used across many different repos
 
-# The kit's own release number; bump it when the rules change.
-version: "1.0.0"
-
 # No `requires`: the rules are plain Markdown and harmless on a base without
 # Claude Code, so the kit composes onto any workload.
 

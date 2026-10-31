@@ -6,10 +6,6 @@ kind: mixin
 displayName: Cloudscale API
 description: Grants sandbox access to api.cloudscale.ch with credential injection
 
-# Nothing is installed, so this is the kit's own release number. Bump it when
-# the declarations change.
-version: "1.0.0"
-
 capabilities:
   # An absent phase grants nothing. The kit has no hooks, so nothing runs at
   # install; the host is reached only by the agent at steady state, so it is
