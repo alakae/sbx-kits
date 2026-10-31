@@ -6,10 +6,6 @@ description: Python linting with shared team config
 sourceUrl: https://github.com/astral-sh/ruff
 licenses: [MIT]
 
-# The kit's own release number, independent of the Ruff version, which is
-# pinned via `args.version`.
-version: "1.0.0"
-
 # ruff-lint.dockerfile pip-installs Ruff's musllinux wheel in an Alpine build
 # stage and copies just the binary into a `scratch` overlay, per "Build a tool
 # mixin" / "Leave build tools out of the mixin"

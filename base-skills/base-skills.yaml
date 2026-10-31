@@ -10,9 +10,6 @@ kind: mixin
 displayName: Base Skills
 description: My base agent skills (Claude Code, OpenCode) used across many different repos
 
-# The kit's own release number; bump it when the skills change.
-version: "1.0.0"
-
 capabilities:
   # Every entry is `optional: true`. A required agent-skill@1 with no
   # agent-skills@1 destination in the composition refuses the whole sandbox

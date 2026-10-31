@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Ruff comes from its PyPI musllinux wheel: a statically linked binary, so
 # it runs on glibc and musl bases alike. Astral's own image
 # (ghcr.io/astral-sh/ruff) is static too, but its aarch64 build bundles a

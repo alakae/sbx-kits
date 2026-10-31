@@ -15,8 +15,6 @@ description: >-
   it (but out of plan mode), and ignores permission rules outside the managed
   policy. Layer it onto any workload that carries Claude Code.
 
-# The kit's own release number; bump it when the policy changes.
-#
 # The policy also sets `allowManagedPermissionRulesOnly`. Disabling bypass
 # mode alone leaves a gap: permission rules from user, project and local
 # settings still apply, and the claude workload pre-accepts workspace trust,
@@ -34,7 +32,6 @@ description: >-
 # --dangerously-skip-permissions starts in `default`, an explicit
 # --permission-mode auto in `auto`, and a non-read-only command in plan mode
 # is refused without a classifier request.
-version: "1.0.0"
 
 # The policy is only meaningful where Claude Code runs. Any kit providing
 # `claude` satisfies this: the published docker.io/docker/sbx-kit-claude
