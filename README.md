@@ -126,6 +126,7 @@ it, and the published workloads declare @1, which can't be combined with @2.
 | [`devbox`](./devbox) | — | Devbox with its own Nix, pinned by nixpkgs commit; pre-warms an existing `devbox.json` at install |
 | [`nix`](./nix) | — | Nix in single-user mode, pinned by nixpkgs commit; makes `nix-shell` / `nix shell` available to the agent |
 | [`ruff-lint`](./ruff-lint) | — | Ruff (static binary, any base) plus a shared user-level `ruff.toml` |
+| [`sbx`](./sbx) | — | The sbx release (CLI and runtime) from its release tarball, pinned by version |
 
 `claude-safe-mixin` layers onto any workload that already provides `claude`:
 the published `docker.io/docker/sbx-kit-claude` image or this repo's

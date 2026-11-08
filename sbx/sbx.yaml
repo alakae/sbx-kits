@@ -1,0 +1,83 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: mixin
+displayName: Docker Sandboxes (sbx)
+description: >-
+  The whole sbx release (CLI and runtime components) from its
+  docker/sbx-releases tarball, pinned by version, as an overlay.
+sourceUrl: https://github.com/docker/sbx-releases
+licenses: [SEE LICENSE IN https://github.com/docker/sbx-releases]
+
+# musl: the tarball's `sbx` is static and runs on alpine, but its helpers
+# (mkfs.*, shims, docklet) link against glibc and do not start there, so
+# daemon-backed commands need a glibc base.
+# The microVM parts (shims, kernel, rootfs images) need /dev/kvm. sbx does
+# not expose it inside its own sandboxes, but another v3 runtime might.
+# Requirements on the workload: Docker with buildx only if local v3 kits are
+# to be loaded.
+#
+# SIGN-IN: some commands refuse while signed out. Only the PAT route
+# works today (see the kit README); the PAT then lives inside the sandbox.
+#
+# The proxy-managed route (device-flow `sbx login`, real tokens kept on the
+# host) is declared below but DOES NOT WORK with sbx v0.51.0: the proxy
+# intercepts the token endpoint and rejects the device-code grant
+# ("proxy: OAuth request denied (unrecognized grant)"). Verified to work,
+# with dockerSentinel supplied: its create-phase expansion into the
+# sentinel, and the PAT route with this credential entry present. Not
+# verified: creating a sandbox without dockerSentinel. Should work
+# unchanged once sbx accepts urn:ietf:params:oauth:grant-type:device_code.
+
+args:
+  version:
+    default: "0.51.0"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    description: sbx release to install (a docker/sbx-releases tag without the v)
+    buildArg: SBX_VERSION
+  # Create-phase arg (no env/buildArg): expanded into the credential config
+  # at sandbox create. sbx parses its access token as a JWT (claims, no
+  # signature check) and reads the username from it, so the proxy-managed
+  # placeholder has to be JWT-shaped. The pattern admits only placeholders:
+  # fixed header, signature segment "proxy-managed" — a real token cannot
+  # match, so none can leak into shell history or sandbox state this way.
+  # The kit README generates it from the Docker ID. Not required: the
+  # device-flow route it serves does not work yet, and the PAT route needs
+  # no sentinel.
+  dockerSentinel:
+    pattern: '^eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]+\.cHJveHktbWFuYWdlZA$'
+    description: JWT-shaped placeholder access token (see the kit README)
+
+provides: ["sbx@${{ kit.args.version }}"]
+
+capabilities:
+  # Network rules travel with the tool (authoring pattern "Keep runtime
+  # access with the tool").
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - login.docker.com                 # sign-in
+          - hub.docker.com                   # Hub API, PAT exchange
+          - api.docker.com
+          # api.sandboxes-cloud.docker.com (`sbx --cloud`) is left out: it
+          # needs the device-flow sign-in that does not work yet, so it is
+          # untested.
+          - registry-1.docker.io             # kit pulls
+          - auth.docker.io
+          - production.cloudfront.docker.com # blob downloads
+
+  - type: com.docker.sandbox/credential@1
+    optional: true
+    description: Docker account for sbx (device-flow sign-in inside the sandbox)
+    config:
+      service: docker
+      phase: runtime
+      oauth:
+        tokenEndpoint: {host: login.docker.com, path: /oauth/token}
+        resourceHosts:
+          - hub.docker.com
+        sentinels:
+          accessToken: "${{ kit.args.dockerSentinel }}"
+          refreshToken: dkr-ort-proxy-managed
+        # No credentialFile: sbx keeps its session age-encrypted, a format
+        # the runtime cannot render. Each new sandbox signs in once.
