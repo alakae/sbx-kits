@@ -69,7 +69,7 @@ All hosts are runtime-only; the install happens at build time, so the sandbox ne
 
 ### The credential and `dockerSentinel`
 
-The descriptor declares an optional `credential@1` for the proxy-managed route: `sbx login` runs the device flow inside the sandbox while the real tokens stay on the host. sbx parses its access token as a JWT and reads the username from it, so the placeholder has to be JWT-shaped. The optional `dockerSentinel` arg carries it into the credential config at sandbox create. The `SENTINEL` line below builds one that carries no secret (fixed header, your Docker ID, dummy ids, a far-future expiry, signature segment `proxy-managed`), and the arg's `pattern` admits only such placeholders, so a real token cannot be passed this way:
+The descriptor declares an optional `credential@1` for the proxy-managed route: `sbx login` runs the device flow inside the sandbox while the real tokens stay on the host. sbx parses its access token as a JWT and reads the username from it, so the placeholder has to be JWT-shaped. The optional `dockerSentinel` arg carries it into the credential config at sandbox create. Without the arg, a placeholder for the username `proxy-managed` is used, so sbx does not prompt; pass your own to have sbx show your Docker ID. The `SENTINEL` line below builds one that carries no secret (fixed header, your Docker ID, dummy ids, a far-future expiry, signature segment `proxy-managed`), and the arg's `pattern` admits only such placeholders, so a real token cannot be passed this way:
 
 ```console
 DOCKER_ID=<docker-id>
@@ -80,7 +80,7 @@ sbx run docker.io/docker/sbx-kit-shell:1.0.0 \
   .
 ```
 
-This route **does not work with sbx v0.51.0**: the proxy intercepts the token endpoint and rejects the device-code grant (`proxy: OAuth request denied (unrecognized grant)`). The entry and the arg are kept so it works unchanged once sbx accepts `urn:ietf:params:oauth:grant-type:device_code`. Until then, use the PAT route above.
+This route **does not work with sbx v0.51.0**: the proxy intercepts the token endpoint and rejects the device-code grant (`proxy: OAuth request denied (unrecognized grant)`), tracked in [docker/sbx-releases#760](https://github.com/docker/sbx-releases/issues/760). The entry and the arg are kept so it works unchanged once sbx accepts `urn:ietf:params:oauth:grant-type:device_code`. Until then, use the PAT route above.
 
 ## Limitations
 
