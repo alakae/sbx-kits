@@ -22,10 +22,10 @@ licenses: [SEE LICENSE IN https://github.com/docker/sbx-releases]
 # The proxy-managed route (device-flow `sbx login`, real tokens kept on the
 # host) is declared below but DOES NOT WORK with sbx v0.51.0: the proxy
 # intercepts the token endpoint and rejects the device-code grant
-# ("proxy: OAuth request denied (unrecognized grant)"). Verified to work,
-# with dockerSentinel supplied: its create-phase expansion into the
-# sentinel, and the PAT route with this credential entry present. Not
-# verified: creating a sandbox without dockerSentinel. Should work
+# ("proxy: OAuth request denied (unrecognized grant)"), tracked in
+# docker/sbx-releases#760. Verified to work: the create-phase expansion of
+# dockerSentinel into the sentinel, the PAT route with this credential entry
+# present, and creating a sandbox without the arg (its default). Should work
 # unchanged once sbx accepts urn:ietf:params:oauth:grant-type:device_code.
 
 args:
@@ -40,10 +40,12 @@ args:
   # placeholder has to be JWT-shaped. The pattern admits only placeholders:
   # fixed header, signature segment "proxy-managed" — a real token cannot
   # match, so none can leak into shell history or sandbox state this way.
-  # The kit README generates it from the Docker ID. Not required: the
-  # device-flow route it serves does not work yet, and the PAT route needs
-  # no sentinel.
+  # The kit README generates it from the Docker ID. The default is the same
+  # placeholder for the username "proxy-managed", so sbx does not prompt for
+  # the arg; an empty value makes sandbox create fail ("failed to inject
+  # network proxy").
   dockerSentinel:
+    default: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FwaS5kb2NrZXIuY29tLyIsImF1ZCI6Imh0dHBzOi8vaHViLmRvY2tlci5jb20iLCJzdWIiOiJwcm94eS1tYW5hZ2VkIiwiZXhwIjo0MTAyNDQ0ODAwLCJpYXQiOjE3NjcyMjU2MDAsImp0aSI6InByb3h5LW1hbmFnZWQiLCJzY29wZSI6IiIsInNvdXJjZSI6eyJpZCI6InByb3h5LW1hbmFnZWQiLCJ0eXBlIjoicGF0In0sImh0dHBzOi8vaHViLmRvY2tlci5jb20iOnsidXNlcm5hbWUiOiJwcm94eS1tYW5hZ2VkIiwidXVpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsImVtYWlsIjoicHJveHktbWFuYWdlZEBleGFtcGxlLmludmFsaWQiLCJyb2xlcyI6W10sInNlc3Npb25faWQiOiJwcm94eS1tYW5hZ2VkIiwic291cmNlIjoicGF0In19.cHJveHktbWFuYWdlZA"
     pattern: '^eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]+\.cHJveHktbWFuYWdlZA$'
     description: JWT-shaped placeholder access token (see the kit README)
 
